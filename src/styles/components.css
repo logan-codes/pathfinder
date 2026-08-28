@@ -1,0 +1,313 @@
+/* ===============================================================
+   Components. House rules:
+     - structure is expressed with 1px lines, never shadow
+     - no gradients, no glow, no blur
+     - one accent colour, reserved for state and primary action
+   =============================================================== */
+
+/* ---------------- panel ---------------- */
+
+.panel {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+.panel--sunken { background: var(--bg-sunken); }
+
+.panel__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border-bottom: 1px solid var(--line);
+  min-height: 41px;
+}
+.panel__head h3, .panel__head h4 { font-size: var(--t-md); font-weight: 600; }
+.panel__head-actions { margin-left: auto; display: flex; align-items: center; gap: var(--s-2); }
+
+.panel__body { padding: var(--s-4); }
+.panel__body--flush { padding: 0; }
+
+.panel__foot {
+  padding: var(--s-3) var(--s-4);
+  border-top: 1px solid var(--line);
+  background: var(--bg-sunken);
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+
+/* ---------------- button ---------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  height: 30px;
+  padding: 0 var(--s-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--fg);
+  font-size: var(--t-base);
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background var(--dur), border-color var(--dur), color var(--dur);
+}
+.btn:hover:not(:disabled) { background: var(--bg-hover); }
+.btn:active:not(:disabled) { background: var(--bg-active); }
+.btn:disabled { opacity: 0.45; }
+
+.btn--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+}
+.btn--primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+
+.btn--ghost { border-color: transparent; background: transparent; color: var(--fg-muted); }
+.btn--ghost:hover:not(:disabled) { background: var(--bg-hover); color: var(--fg); }
+
+.btn--danger { color: var(--danger); border-color: var(--danger-line); }
+.btn--danger:hover:not(:disabled) { background: var(--danger-wash); }
+
+.btn--lg { height: 36px; padding: 0 var(--s-4); font-size: var(--t-md); }
+.btn--sm { height: 26px; padding: 0 var(--s-2); font-size: var(--t-sm); }
+.btn--icon { width: 30px; padding: 0; }
+.btn--icon.btn--sm { width: 26px; }
+.btn--block { width: 100%; }
+
+/* ---------------- inputs ---------------- */
+
+.field { display: flex; flex-direction: column; gap: var(--s-2); }
+
+.input, .textarea, .select {
+  width: 100%;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--fg);
+  padding: var(--s-2) var(--s-3);
+  font-size: var(--t-md);
+  transition: border-color var(--dur);
+}
+/* Fixed-height controls. 32px less the 1px borders leaves a 30px content
+   box, and 8px of vertical padding squeezed the 21px line box down to 14px
+   — which clipped the bottom of the glyphs. The fixed height does the
+   centring; vertical padding only fights it. The textarea keeps its padding,
+   because it grows with its content instead. */
+.input, .select { height: 32px; padding-block: 0; }
+.textarea { resize: vertical; min-height: 72px; line-height: 1.5; }
+.input:hover, .textarea:hover, .select:hover { border-color: var(--fg-faint); }
+.input::placeholder, .textarea::placeholder { color: var(--fg-faint); }
+
+.select {
+  height: 32px;
+  appearance: none;
+  padding-right: var(--s-8);
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='12'%20height='12'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%238a8a83'%20stroke-width='2.5'%20stroke-linecap='round'%3E%3Cpath%20d='M6%209l6%206%206-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--s-3) center;
+  cursor: pointer;
+}
+
+.hint { font-size: var(--t-sm); color: var(--fg-faint); }
+
+/* ---------------- chip ---------------- */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  height: 26px;
+  padding: 0 var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--bg);
+  color: var(--fg-muted);
+  font-size: var(--t-sm);
+  transition: background var(--dur), border-color var(--dur), color var(--dur);
+}
+.chip:hover { border-color: var(--line-strong); color: var(--fg); }
+.chip--on {
+  background: var(--accent-wash);
+  border-color: var(--accent-line);
+  color: var(--accent);
+  font-weight: 500;
+}
+
+/* ---------------- badge ---------------- */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.badge--ok      { color: var(--ok);     background: var(--ok-wash);     border-color: var(--ok-line); }
+.badge--warn    { color: var(--warn);   background: var(--warn-wash);   border-color: var(--warn-line); }
+.badge--accent  { color: var(--accent); background: var(--accent-wash); border-color: var(--accent-line); }
+.badge--danger  { color: var(--danger); background: var(--danger-wash); border-color: var(--danger-line); }
+
+/* Square type markers for catalogue items. */
+.kind {
+  display: inline-grid;
+  place-items: center;
+  width: 18px; height: 18px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  flex-shrink: 0;
+}
+.kind--project    { border-color: var(--accent-line); color: var(--accent); background: var(--accent-wash); }
+.kind--assessment { border-color: var(--warn-line);   color: var(--warn);   background: var(--warn-wash); }
+
+/* ---------------- meters ---------------- */
+
+/* Segmented skill meter: 5 discrete blocks. Reads as a level, not a percentage. */
+.meter { display: flex; gap: 2px; align-items: center; }
+.meter__block { width: 14px; height: 8px; border-radius: 1px; background: var(--track); }
+.meter__block--filled { background: var(--accent); }
+.meter__block--gap { background: var(--track); border: 1px dashed var(--accent-line); }
+.meter--sm .meter__block { width: 10px; height: 6px; }
+
+/* Continuous bar: completion percentages only. */
+.bar { height: 6px; background: var(--track); border-radius: 1px; overflow: hidden; }
+.bar__fill { height: 100%; background: var(--accent); border-radius: 1px; transition: width 200ms ease-out; }
+.bar__fill--ok { background: var(--ok); }
+
+/* ---------------- stat tile ---------------- */
+
+.stat {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--s-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  background: var(--bg);
+}
+.stat__value {
+  font-family: var(--font-mono);
+  font-size: var(--t-2xl);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.stat__unit { font-size: var(--t-md); color: var(--fg-faint); font-weight: 400; margin-left: 2px; }
+.stat__foot { font-size: var(--t-sm); color: var(--fg-faint); }
+
+/* ---------------- list rows ---------------- */
+
+.rows { display: flex; flex-direction: column; }
+.rows > * + * { border-top: 1px solid var(--line); }
+
+.rowitem {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  transition: background var(--dur);
+  text-align: left;
+  width: 100%;
+}
+.rowitem--button:hover { background: var(--bg-hover); }
+.rowitem--on { background: var(--accent-wash); }
+.rowitem__main { min-width: 0; flex: 1; }
+.rowitem__title { font-size: var(--t-md); font-weight: 500; }
+.rowitem__meta { font-size: var(--t-sm); color: var(--fg-faint); display: flex; gap: var(--s-2); flex-wrap: wrap; }
+.rowitem--done .rowitem__title { color: var(--fg-faint); text-decoration: line-through; }
+
+/* ---------------- empty state ---------------- */
+
+.empty {
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius);
+  padding: var(--s-10) var(--s-6);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-3);
+  color: var(--fg-muted);
+}
+.empty h3 { color: var(--fg); }
+.empty p { max-width: 46ch; font-size: var(--t-md); }
+
+/* ---------------- tabs ---------------- */
+
+.tabs { display: flex; gap: var(--s-1); border-bottom: 1px solid var(--line); }
+.tab {
+  padding: var(--s-2) var(--s-3);
+  font-size: var(--t-md);
+  color: var(--fg-muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color var(--dur), border-color var(--dur);
+}
+.tab:hover { color: var(--fg); }
+.tab--on { color: var(--fg); border-bottom-color: var(--accent); font-weight: 500; }
+
+/* ---------------- theme toggle ---------------- */
+
+.themetoggle { display: inline-flex; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.themetoggle button {
+  width: 28px; height: 28px;
+  display: grid; place-items: center;
+  color: var(--fg-faint);
+  transition: background var(--dur), color var(--dur);
+}
+.themetoggle button + button { border-left: 1px solid var(--line); }
+.themetoggle button:hover { background: var(--bg-hover); color: var(--fg); }
+.themetoggle button[aria-pressed="true"] { background: var(--bg-active); color: var(--fg); }
+
+/* ---------------- connection indicator ----------------
+   Whether the API is answering. Deliberately legible rather than decorative:
+   an app that silently falls back to running locally looks identical to a
+   connected one, and that is exactly the confusion worth spending 6px on. */
+
+.conn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  height: 26px;
+  padding: 0 var(--s-2) 0 var(--s-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  white-space: nowrap;
+  transition: background var(--dur), border-color var(--dur), color var(--dur);
+}
+
+.conn:hover { background: var(--bg-hover); color: var(--fg); }
+
+.conn__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--fg-faint);
+  flex: none;
+}
+
+.conn--on   { border-color: var(--accent-line); color: var(--accent); }
+.conn--on   .conn__dot { background: var(--accent); }
+.conn--ok   { border-color: var(--ok-line); color: var(--ok); }
+.conn--ok   .conn__dot { background: var(--ok); }
+.conn--warn { border-color: var(--warn-line); color: var(--warn); }
+.conn--warn .conn__dot { background: var(--warn); }

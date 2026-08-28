@@ -1,0 +1,1791 @@
+{
+  "version": 1,
+  "authoredAt": "2026-08-27",
+  "authoredBy": "hand-seeded",
+  "note": "Authored offline and committed. The server only reads this file - it never generates items per request, because items that differ per learner cannot be compared across learners, calibrated from response data, or A/B tested, and their answer keys are never reviewed. Expand with `npm run author:quiz`, then review the keys before committing.",
+  "difficultyMeaning": "An item of difficulty d is expected to be answerable by a learner at level >= d on the 0-5 scale.",
+  "items": [
+    {
+      "id": "q-python-1",
+      "skillId": "python",
+      "difficulty": 2,
+      "stem": "What does `[x * 2 for x in range(3)]` evaluate to?",
+      "options": [
+        {
+          "id": "a",
+          "text": "[0, 2, 4]"
+        },
+        {
+          "id": "b",
+          "text": "[2, 4, 6]"
+        },
+        {
+          "id": "c",
+          "text": "[0, 1, 2]"
+        },
+        {
+          "id": "d",
+          "text": "[1, 2, 3]"
+        }
+      ],
+      "answer": "a",
+      "rationale": "range(3) yields 0, 1, 2, and each is doubled.",
+      "reviewed": true
+    },
+    {
+      "id": "q-python-2",
+      "skillId": "python",
+      "difficulty": 4,
+      "stem": "A function is defined as `def add(item, acc=[])`. What happens across repeated calls that omit `acc`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "A fresh empty list is created on each call"
+        },
+        {
+          "id": "b",
+          "text": "Every such call shares the same list object"
+        },
+        {
+          "id": "c",
+          "text": "Python raises a TypeError for mutable defaults"
+        },
+        {
+          "id": "d",
+          "text": "The default is silently converted to a tuple"
+        }
+      ],
+      "answer": "b",
+      "rationale": "Default arguments are evaluated once, at definition time, so the list persists between calls.",
+      "reviewed": true
+    },
+    {
+      "id": "q-sql-1",
+      "skillId": "sql",
+      "difficulty": 2,
+      "stem": "Which clause filters rows after GROUP BY has aggregated them?",
+      "options": [
+        {
+          "id": "a",
+          "text": "WHERE"
+        },
+        {
+          "id": "b",
+          "text": "ORDER BY"
+        },
+        {
+          "id": "c",
+          "text": "HAVING"
+        },
+        {
+          "id": "d",
+          "text": "DISTINCT"
+        }
+      ],
+      "answer": "c",
+      "rationale": "WHERE filters rows before aggregation; HAVING filters the aggregated groups.",
+      "reviewed": true
+    },
+    {
+      "id": "q-sql-2",
+      "skillId": "sql",
+      "difficulty": 4,
+      "stem": "You write a LEFT JOIN, then add `WHERE right_table.status = 'active'`. What happens?",
+      "options": [
+        {
+          "id": "a",
+          "text": "All left rows are kept, with the condition ignored for NULLs"
+        },
+        {
+          "id": "b",
+          "text": "The query fails to parse"
+        },
+        {
+          "id": "c",
+          "text": "It is identical to putting the condition in the ON clause"
+        },
+        {
+          "id": "d",
+          "text": "Unmatched left rows are dropped, so it behaves like an inner join"
+        }
+      ],
+      "answer": "d",
+      "rationale": "Unmatched rows have NULL on the right, and NULL = 'active' is not true, so WHERE removes them. Putting the condition in ON would preserve them.",
+      "reviewed": true
+    },
+    {
+      "id": "q-stats-1",
+      "skillId": "stats",
+      "difficulty": 2,
+      "stem": "What does a 95% confidence interval actually claim?",
+      "options": [
+        {
+          "id": "a",
+          "text": "If the procedure were repeated on many samples, 95% of the intervals produced would contain the true value"
+        },
+        {
+          "id": "b",
+          "text": "There is a 95% probability the true value lies inside this particular interval"
+        },
+        {
+          "id": "c",
+          "text": "95% of the observed data points fall inside the interval"
+        },
+        {
+          "id": "d",
+          "text": "The estimate is accurate to within 5%"
+        }
+      ],
+      "answer": "a",
+      "rationale": "The 95% is a property of the procedure across repeated samples, not of the one interval you computed.",
+      "reviewed": true
+    },
+    {
+      "id": "q-stats-2",
+      "skillId": "stats",
+      "difficulty": 4,
+      "stem": "A test returns p = 0.03. What does that number mean?",
+      "options": [
+        {
+          "id": "a",
+          "text": "There is a 3% chance the null hypothesis is true"
+        },
+        {
+          "id": "b",
+          "text": "If the null hypothesis were true, data at least this extreme would occur 3% of the time"
+        },
+        {
+          "id": "c",
+          "text": "There is a 97% chance the effect is real"
+        },
+        {
+          "id": "d",
+          "text": "The effect size is 3%"
+        }
+      ],
+      "answer": "b",
+      "rationale": "A p-value is computed assuming the null is true; it says nothing directly about the probability of any hypothesis.",
+      "reviewed": true
+    },
+    {
+      "id": "q-wrangling-1",
+      "skillId": "wrangling",
+      "difficulty": 2,
+      "stem": "You left-join a table on `id`, and the right table has two rows with the same `id`. What happens to that left row?",
+      "options": [
+        {
+          "id": "a",
+          "text": "The output always has exactly as many rows as the left table"
+        },
+        {
+          "id": "b",
+          "text": "The join raises an error on duplicate keys"
+        },
+        {
+          "id": "c",
+          "text": "It is duplicated - one output row per match"
+        },
+        {
+          "id": "d",
+          "text": "Only the first match is kept"
+        }
+      ],
+      "answer": "c",
+      "rationale": "A join is a filtered cross product per key, so duplicate keys on the right multiply left rows. Checking row counts after a join catches this.",
+      "reviewed": true
+    },
+    {
+      "id": "q-wrangling-2",
+      "skillId": "wrangling",
+      "difficulty": 3,
+      "stem": "In pandas, `df[df.score > 10].flag = 1` usually leaves `df` unchanged. Why?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Boolean masks return immutable views"
+        },
+        {
+          "id": "b",
+          "text": "Columns cannot be assigned to after filtering"
+        },
+        {
+          "id": "c",
+          "text": "It does modify df - the change just is not flushed until save"
+        },
+        {
+          "id": "d",
+          "text": "Chained indexing produces a copy, so the assignment lands on a temporary"
+        }
+      ],
+      "answer": "d",
+      "rationale": "The mask produces a new object; assigning to it discards the result. Use `.loc[mask, 'flag'] = 1`.",
+      "reviewed": true
+    },
+    {
+      "id": "q-viz-1",
+      "skillId": "viz",
+      "difficulty": 2,
+      "stem": "What is the effect of starting a bar chart's y-axis above zero?",
+      "options": [
+        {
+          "id": "a",
+          "text": "It exaggerates differences, because bar length is the encoding"
+        },
+        {
+          "id": "b",
+          "text": "Nothing, as long as the axis is labelled"
+        },
+        {
+          "id": "c",
+          "text": "It compresses differences, making them harder to see"
+        },
+        {
+          "id": "d",
+          "text": "It is required whenever the values are large"
+        }
+      ],
+      "answer": "a",
+      "rationale": "Bars encode value as length from a baseline. Move the baseline and the lengths stop being proportional to the values.",
+      "reviewed": true
+    },
+    {
+      "id": "q-viz-2",
+      "skillId": "viz",
+      "difficulty": 3,
+      "stem": "You need to compare one metric across 40 categories. Which chart reads most easily?",
+      "options": [
+        {
+          "id": "a",
+          "text": "A pie chart with 40 slices"
+        },
+        {
+          "id": "b",
+          "text": "A horizontal bar chart sorted by value"
+        },
+        {
+          "id": "c",
+          "text": "A 3D column chart"
+        },
+        {
+          "id": "d",
+          "text": "A stacked area chart"
+        }
+      ],
+      "answer": "b",
+      "rationale": "Horizontal bars give long labels room, and sorting turns rank into position, which is the most accurately read encoding.",
+      "reviewed": true
+    },
+    {
+      "id": "q-ml-1",
+      "skillId": "ml",
+      "difficulty": 2,
+      "stem": "A model scores 99% on training data and 62% on held-out data. What is happening?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Underfitting - the model is too simple for the data"
+        },
+        {
+          "id": "b",
+          "text": "The model is well calibrated"
+        },
+        {
+          "id": "c",
+          "text": "Overfitting - it has memorised the training set rather than generalised"
+        },
+        {
+          "id": "d",
+          "text": "The held-out set is too large"
+        }
+      ],
+      "answer": "c",
+      "rationale": "A large train/test gap is the definition of overfitting.",
+      "reviewed": true
+    },
+    {
+      "id": "q-ml-2",
+      "skillId": "ml",
+      "difficulty": 4,
+      "stem": "Why fit a feature scaler inside each cross-validation fold rather than once on the full dataset?",
+      "options": [
+        {
+          "id": "a",
+          "text": "It is significantly faster"
+        },
+        {
+          "id": "b",
+          "text": "Scaling changes the label distribution"
+        },
+        {
+          "id": "c",
+          "text": "Scalers cannot technically be reused across folds"
+        },
+        {
+          "id": "d",
+          "text": "Fitting on everything leaks information from the validation fold into training, inflating the score"
+        }
+      ],
+      "answer": "d",
+      "rationale": "The scaler's statistics are learned parameters. Learning them from data you then evaluate on is leakage.",
+      "reviewed": true
+    },
+    {
+      "id": "q-javascript-1",
+      "skillId": "javascript",
+      "difficulty": 2,
+      "stem": "What does `typeof null` return?",
+      "options": [
+        {
+          "id": "a",
+          "text": "\"object\""
+        },
+        {
+          "id": "b",
+          "text": "\"null\""
+        },
+        {
+          "id": "c",
+          "text": "\"undefined\""
+        },
+        {
+          "id": "d",
+          "text": "\"number\""
+        }
+      ],
+      "answer": "a",
+      "rationale": "A long-standing bug in the language, kept for backwards compatibility.",
+      "reviewed": true
+    },
+    {
+      "id": "q-javascript-2",
+      "skillId": "javascript",
+      "difficulty": 4,
+      "stem": "You `await` inside an `array.forEach(async (x) => ...)` callback. What happens?",
+      "options": [
+        {
+          "id": "a",
+          "text": "It behaves exactly like `for...of` with await"
+        },
+        {
+          "id": "b",
+          "text": "forEach ignores the returned promises, so the loop finishes before the work does"
+        },
+        {
+          "id": "c",
+          "text": "It is a syntax error"
+        },
+        {
+          "id": "d",
+          "text": "The callbacks run in reverse order"
+        }
+      ],
+      "answer": "b",
+      "rationale": "forEach discards the callback's return value. Use `for...of` to await sequentially, or `Promise.all(map(...))` to await concurrently.",
+      "reviewed": true
+    },
+    {
+      "id": "q-typescript-1",
+      "skillId": "typescript",
+      "difficulty": 2,
+      "stem": "What does a TypeScript `interface` compile to in the emitted JavaScript?",
+      "options": [
+        {
+          "id": "a",
+          "text": "A JavaScript class"
+        },
+        {
+          "id": "b",
+          "text": "A runtime validation function"
+        },
+        {
+          "id": "c",
+          "text": "Nothing - types are erased at compile time"
+        },
+        {
+          "id": "d",
+          "text": "A JSON schema object"
+        }
+      ],
+      "answer": "c",
+      "rationale": "Types exist only for the compiler. Data crossing a network boundary still needs runtime validation.",
+      "reviewed": true
+    },
+    {
+      "id": "q-typescript-2",
+      "skillId": "typescript",
+      "difficulty": 4,
+      "stem": "How does `any` differ from `unknown`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "They are identical aliases"
+        },
+        {
+          "id": "b",
+          "text": "`any` performs a runtime cast, `unknown` does not"
+        },
+        {
+          "id": "c",
+          "text": "`unknown` makes the value read-only"
+        },
+        {
+          "id": "d",
+          "text": "`any` switches off checking for everything reached through it; `unknown` forces you to narrow before use"
+        }
+      ],
+      "answer": "d",
+      "rationale": "`unknown` is the safe top type: assignable from anything, assignable to nothing without a check.",
+      "reviewed": true
+    },
+    {
+      "id": "q-react-1",
+      "skillId": "react",
+      "difficulty": 2,
+      "stem": "In a production build, when does a `useEffect` with an empty dependency array run?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Once, after the first render"
+        },
+        {
+          "id": "b",
+          "text": "After every render"
+        },
+        {
+          "id": "c",
+          "text": "Never - an empty array disables it"
+        },
+        {
+          "id": "d",
+          "text": "Before the first render, synchronously"
+        }
+      ],
+      "answer": "a",
+      "rationale": "No dependencies means nothing can change, so it runs once after mount, with its cleanup on unmount.",
+      "reviewed": true
+    },
+    {
+      "id": "q-react-2",
+      "skillId": "react",
+      "difficulty": 4,
+      "stem": "Why does using the array index as a list `key` cause bugs when the list is reordered?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Numeric keys are slower to compare than strings"
+        },
+        {
+          "id": "b",
+          "text": "The key identifies a position rather than an item, so component state stays behind with the position"
+        },
+        {
+          "id": "c",
+          "text": "React throws when keys are integers"
+        },
+        {
+          "id": "d",
+          "text": "It disables reconciliation completely"
+        }
+      ],
+      "answer": "b",
+      "rationale": "Reconciliation matches elements by key. If the key is the index, item 0 is always 'the same' element, so its state and DOM stay put while its data changes underneath.",
+      "reviewed": true
+    },
+    {
+      "id": "q-html-css-1",
+      "skillId": "html-css",
+      "difficulty": 2,
+      "stem": "What does `display: flex` on a container do?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Makes the container itself a flex item inside its own parent"
+        },
+        {
+          "id": "b",
+          "text": "Applies flex layout to every descendant at any depth"
+        },
+        {
+          "id": "c",
+          "text": "Lays out its direct children along a main axis"
+        },
+        {
+          "id": "d",
+          "text": "Acts as a shorthand for floating the children left"
+        }
+      ],
+      "answer": "c",
+      "rationale": "Flex layout applies to direct children only; grandchildren are laid out by their own parent's display value.",
+      "reviewed": true
+    },
+    {
+      "id": "q-html-css-2",
+      "skillId": "html-css",
+      "difficulty": 3,
+      "stem": "Why prefer a `<button>` over a `<div>` with a click handler?",
+      "options": [
+        {
+          "id": "a",
+          "text": "It renders measurably faster"
+        },
+        {
+          "id": "b",
+          "text": "A div cannot receive click events"
+        },
+        {
+          "id": "c",
+          "text": "CSS cannot style a div's hover state"
+        },
+        {
+          "id": "d",
+          "text": "It is keyboard-focusable, activates on Enter and Space, and is announced as a button by assistive tech"
+        }
+      ],
+      "answer": "d",
+      "rationale": "Reproducing focus, key handling and the accessibility role by hand is work the native element has already done.",
+      "reviewed": true
+    },
+    {
+      "id": "q-node-1",
+      "skillId": "node",
+      "difficulty": 2,
+      "stem": "How does Node.js execute your JavaScript?",
+      "options": [
+        {
+          "id": "a",
+          "text": "On a single thread with an event loop, with I/O handled off that thread"
+        },
+        {
+          "id": "b",
+          "text": "One operating-system thread per incoming request"
+        },
+        {
+          "id": "c",
+          "text": "One process per incoming request"
+        },
+        {
+          "id": "d",
+          "text": "Fully synchronously, in call order"
+        }
+      ],
+      "answer": "a",
+      "rationale": "Your code runs on one thread. Concurrency comes from not blocking it while I/O completes elsewhere.",
+      "reviewed": true
+    },
+    {
+      "id": "q-node-2",
+      "skillId": "node",
+      "difficulty": 3,
+      "stem": "What does a long CPU-bound loop inside a request handler do to the server?",
+      "options": [
+        {
+          "id": "a",
+          "text": "It is automatically moved to a worker thread"
+        },
+        {
+          "id": "b",
+          "text": "It blocks the event loop, so every other in-flight request stalls"
+        },
+        {
+          "id": "c",
+          "text": "It slows only that one request"
+        },
+        {
+          "id": "d",
+          "text": "libuv schedules it on the thread pool"
+        }
+      ],
+      "answer": "b",
+      "rationale": "The thread pool handles certain I/O and crypto calls, not your JavaScript. CPU-bound work belongs in a worker thread or a separate process.",
+      "reviewed": true
+    },
+    {
+      "id": "q-api-design-1",
+      "skillId": "api-design",
+      "difficulty": 2,
+      "stem": "Which HTTP method is required to be idempotent?",
+      "options": [
+        {
+          "id": "a",
+          "text": "POST"
+        },
+        {
+          "id": "b",
+          "text": "PATCH"
+        },
+        {
+          "id": "c",
+          "text": "PUT"
+        },
+        {
+          "id": "d",
+          "text": "None of them"
+        }
+      ],
+      "answer": "c",
+      "rationale": "PUT and DELETE are idempotent by definition; POST and PATCH are not required to be.",
+      "reviewed": true
+    },
+    {
+      "id": "q-api-design-2",
+      "skillId": "api-design",
+      "difficulty": 4,
+      "stem": "You add a new required field to an existing endpoint's request body. What is the effect on existing clients?",
+      "options": [
+        {
+          "id": "a",
+          "text": "It is backwards compatible, since their old fields still work"
+        },
+        {
+          "id": "b",
+          "text": "It is safe as long as it is documented"
+        },
+        {
+          "id": "c",
+          "text": "Only GET requests are affected"
+        },
+        {
+          "id": "d",
+          "text": "It is a breaking change - their previously valid requests now fail validation"
+        }
+      ],
+      "answer": "d",
+      "rationale": "Adding optional fields is compatible; making anything newly required is not.",
+      "reviewed": true
+    },
+    {
+      "id": "q-testing-1",
+      "skillId": "testing",
+      "difficulty": 2,
+      "stem": "A test passes and fails intermittently on unchanged code. What is the real cost?",
+      "options": [
+        {
+          "id": "a",
+          "text": "It teaches the team to ignore red builds, which hides genuine failures"
+        },
+        {
+          "id": "b",
+          "text": "Nothing, as long as it passes most of the time"
+        },
+        {
+          "id": "c",
+          "text": "It proves the code is fast enough"
+        },
+        {
+          "id": "d",
+          "text": "It correctly detects a race condition on every run"
+        }
+      ],
+      "answer": "a",
+      "rationale": "A flaky test destroys the signal the suite exists to provide. Fix it or delete it.",
+      "reviewed": true
+    },
+    {
+      "id": "q-testing-2",
+      "skillId": "testing",
+      "difficulty": 3,
+      "stem": "What goes wrong if you mock the module you are trying to test?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Nothing - that is the standard unit-testing approach"
+        },
+        {
+          "id": "b",
+          "text": "The test asserts on the mock's behaviour, so the real code is never exercised"
+        },
+        {
+          "id": "c",
+          "text": "The assertions run more slowly"
+        },
+        {
+          "id": "d",
+          "text": "Async code stops working"
+        }
+      ],
+      "answer": "b",
+      "rationale": "Mock the collaborators at the boundary, never the subject under test.",
+      "reviewed": true
+    },
+    {
+      "id": "q-git-1",
+      "skillId": "git",
+      "difficulty": 2,
+      "stem": "What does `git revert <commit>` do?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Deletes the commit from the history"
+        },
+        {
+          "id": "b",
+          "text": "Moves HEAD back one commit and discards the working tree"
+        },
+        {
+          "id": "c",
+          "text": "Creates a new commit that undoes that commit's changes, leaving history intact"
+        },
+        {
+          "id": "d",
+          "text": "Stashes the changes for later"
+        }
+      ],
+      "answer": "c",
+      "rationale": "revert is additive and therefore safe on shared branches; `reset` is the one that rewrites.",
+      "reviewed": true
+    },
+    {
+      "id": "q-git-2",
+      "skillId": "git",
+      "difficulty": 3,
+      "stem": "What is the risk of force-pushing a rebased branch that colleagues have already pulled?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Git merges their work into the rebase automatically"
+        },
+        {
+          "id": "b",
+          "text": "Git refuses the push in all cases"
+        },
+        {
+          "id": "c",
+          "text": "Nothing - other clones are unaffected"
+        },
+        {
+          "id": "d",
+          "text": "Shared history is rewritten, so their branches diverge and their merges can resurrect old commits"
+        }
+      ],
+      "answer": "d",
+      "rationale": "Rebasing rewrites commit ids. Anyone who already has the old ids now has a different history from yours.",
+      "reviewed": true
+    },
+    {
+      "id": "q-linux-1",
+      "skillId": "linux",
+      "difficulty": 2,
+      "stem": "What permissions does `chmod 640 report.csv` set?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Owner read and write, group read, others nothing"
+        },
+        {
+          "id": "b",
+          "text": "Owner read, write and execute; group read and write; others read"
+        },
+        {
+          "id": "c",
+          "text": "Owner read only, group read and write, others nothing"
+        },
+        {
+          "id": "d",
+          "text": "Everyone read and write"
+        }
+      ],
+      "answer": "a",
+      "rationale": "Each digit sums r=4, w=2, x=1: 6 = rw, 4 = r, 0 = none.",
+      "reviewed": true
+    },
+    {
+      "id": "q-linux-2",
+      "skillId": "linux",
+      "difficulty": 3,
+      "stem": "In the pipeline `build | tee log.txt`, what does `tee` receive?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Both stdout and stderr"
+        },
+        {
+          "id": "b",
+          "text": "Only build's stdout - its stderr still goes to the terminal"
+        },
+        {
+          "id": "c",
+          "text": "Build's exit code"
+        },
+        {
+          "id": "d",
+          "text": "Only stderr"
+        }
+      ],
+      "answer": "b",
+      "rationale": "A pipe connects stdout. To include stderr you have to redirect it explicitly, e.g. `2>&1`.",
+      "reviewed": true
+    },
+    {
+      "id": "q-docker-1",
+      "skillId": "docker",
+      "difficulty": 2,
+      "stem": "Why do Dockerfiles copy the dependency manifest and install dependencies before copying the rest of the source?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Because copying the whole source first would fail"
+        },
+        {
+          "id": "b",
+          "text": "It halves the size of the final image"
+        },
+        {
+          "id": "c",
+          "text": "So the dependency-install layer stays cached when only application code changes"
+        },
+        {
+          "id": "d",
+          "text": "Instruction order has no effect on builds"
+        }
+      ],
+      "answer": "c",
+      "rationale": "Each instruction is a cached layer invalidated by its inputs. Source changes far more often than dependencies.",
+      "reviewed": true
+    },
+    {
+      "id": "q-docker-2",
+      "skillId": "docker",
+      "difficulty": 4,
+      "stem": "What happens to data an application writes into its container's own filesystem?",
+      "options": [
+        {
+          "id": "a",
+          "text": "It is written back into the image"
+        },
+        {
+          "id": "b",
+          "text": "It survives removal of the container automatically"
+        },
+        {
+          "id": "c",
+          "text": "It is shared with every other container from the same image"
+        },
+        {
+          "id": "d",
+          "text": "It is lost when the container is removed, unless the path is a volume or bind mount"
+        }
+      ],
+      "answer": "d",
+      "rationale": "The writable layer belongs to the container, not the image, and dies with it. State needs a volume or an external service.",
+      "reviewed": true
+    },
+    {
+      "id": "q-k8s-1",
+      "skillId": "k8s",
+      "difficulty": 3,
+      "stem": "What is a Kubernetes Deployment responsible for?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Keeping the declared number of pod replicas running and managing rollouts between versions"
+        },
+        {
+          "id": "b",
+          "text": "Giving pods a stable network address and load balancing to them"
+        },
+        {
+          "id": "c",
+          "text": "Storing non-secret configuration for pods to consume"
+        },
+        {
+          "id": "d",
+          "text": "Running a task on a cron schedule"
+        }
+      ],
+      "answer": "a",
+      "rationale": "Addressing is a Service, configuration is a ConfigMap, and scheduled work is a CronJob.",
+      "reviewed": true
+    },
+    {
+      "id": "q-k8s-2",
+      "skillId": "k8s",
+      "difficulty": 4,
+      "stem": "A pod's readiness probe starts failing. What does Kubernetes do?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Restarts the container immediately"
+        },
+        {
+          "id": "b",
+          "text": "Removes it from Service endpoints so it stops receiving traffic, but does not restart it"
+        },
+        {
+          "id": "c",
+          "text": "Deletes the pod and schedules a replacement"
+        },
+        {
+          "id": "d",
+          "text": "Nothing - readiness probes are advisory only"
+        }
+      ],
+      "answer": "b",
+      "rationale": "Readiness controls traffic; liveness controls restarts. Confusing the two is how a slow-starting service ends up in a restart loop.",
+      "reviewed": true
+    },
+    {
+      "id": "q-ci-cd-1",
+      "skillId": "ci-cd",
+      "difficulty": 2,
+      "stem": "What is wrong with putting deployment credentials directly in the pipeline definition file?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Nothing, provided the repository is private"
+        },
+        {
+          "id": "b",
+          "text": "It is required for builds to be reproducible"
+        },
+        {
+          "id": "c",
+          "text": "Anyone with read access to the repository gets them, and they persist in history after removal"
+        },
+        {
+          "id": "d",
+          "text": "It is the only way a runner can authenticate"
+        }
+      ],
+      "answer": "c",
+      "rationale": "Secrets belong in the CI system's secret store, injected at run time. A committed secret has to be rotated, not just deleted.",
+      "reviewed": true
+    },
+    {
+      "id": "q-ci-cd-2",
+      "skillId": "ci-cd",
+      "difficulty": 4,
+      "stem": "What characterises a blue/green deployment?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Half the fleet permanently runs the previous version"
+        },
+        {
+          "id": "b",
+          "text": "Instances are replaced one at a time until all are new"
+        },
+        {
+          "id": "c",
+          "text": "Releases happen only inside a maintenance window"
+        },
+        {
+          "id": "d",
+          "text": "The new version runs alongside the old, and traffic is switched over once it is healthy"
+        }
+      ],
+      "answer": "d",
+      "rationale": "Two complete environments and one switch, which makes rollback a switch back. Replacing instances one at a time is a rolling update.",
+      "reviewed": true
+    },
+    {
+      "id": "q-cloud-1",
+      "skillId": "cloud",
+      "difficulty": 2,
+      "stem": "Under the shared responsibility model, what does the cloud provider secure?",
+      "options": [
+        {
+          "id": "a",
+          "text": "The underlying infrastructure - your configuration, data and access control remain yours"
+        },
+        {
+          "id": "b",
+          "text": "Everything, including your access policies"
+        },
+        {
+          "id": "c",
+          "text": "Only the physical building"
+        },
+        {
+          "id": "d",
+          "text": "Only billing and metering"
+        }
+      ],
+      "answer": "a",
+      "rationale": "Security *of* the cloud is theirs; security *in* the cloud is yours.",
+      "reviewed": true
+    },
+    {
+      "id": "q-cloud-2",
+      "skillId": "cloud",
+      "difficulty": 4,
+      "stem": "What causes most cloud data exposure incidents?",
+      "options": [
+        {
+          "id": "a",
+          "text": "The provider's own infrastructure being breached"
+        },
+        {
+          "id": "b",
+          "text": "Over-permissive access configuration by the customer"
+        },
+        {
+          "id": "c",
+          "text": "Weaknesses in the encryption algorithms used"
+        },
+        {
+          "id": "d",
+          "text": "Physical theft of disks from data centres"
+        }
+      ],
+      "answer": "b",
+      "rationale": "Publicly readable buckets and over-broad roles, not provider compromise. Default-deny and least privilege are the defence.",
+      "reviewed": true
+    },
+    {
+      "id": "q-iac-1",
+      "skillId": "iac",
+      "difficulty": 3,
+      "stem": "Why keep infrastructure state in a shared remote backend with locking?",
+      "options": [
+        {
+          "id": "a",
+          "text": "To make plan output render faster"
+        },
+        {
+          "id": "b",
+          "text": "To encrypt the provider credentials"
+        },
+        {
+          "id": "c",
+          "text": "So two concurrent applies cannot race and corrupt the recorded state"
+        },
+        {
+          "id": "d",
+          "text": "To allow modules to be published publicly"
+        }
+      ],
+      "answer": "c",
+      "rationale": "State is the map from code to real resources. Two writers without a lock can lose or duplicate resources.",
+      "reviewed": true
+    },
+    {
+      "id": "q-iac-2",
+      "skillId": "iac",
+      "difficulty": 4,
+      "stem": "Someone resolves an incident by changing a managed resource in the cloud console. What is the consequence?",
+      "options": [
+        {
+          "id": "a",
+          "text": "The change is imported into state automatically"
+        },
+        {
+          "id": "b",
+          "text": "Nothing - the next plan will simply skip that resource"
+        },
+        {
+          "id": "c",
+          "text": "The provider blocks manual edits to managed resources"
+        },
+        {
+          "id": "d",
+          "text": "Drift - the next apply may revert or destroy the change without warning"
+        }
+      ],
+      "answer": "d",
+      "rationale": "Declarative tools reconcile reality to the code. Manual changes must be written back into the code, or they are temporary.",
+      "reviewed": true
+    },
+    {
+      "id": "q-observability-1",
+      "skillId": "observability",
+      "difficulty": 3,
+      "stem": "An alert fires several times a week and is routinely dismissed without action. What should happen to it?",
+      "options": [
+        {
+          "id": "a",
+          "text": "It should be made actionable or deleted - as it stands it trains people to ignore the pager"
+        },
+        {
+          "id": "b",
+          "text": "It should be routed to more people so someone eventually acts"
+        },
+        {
+          "id": "c",
+          "text": "It should be left alone; frequent alerts prove good coverage"
+        },
+        {
+          "id": "d",
+          "text": "Its threshold should be lowered so it fires sooner"
+        }
+      ],
+      "answer": "a",
+      "rationale": "Every alert should correspond to something a human must do now. Anything else erodes the response to the real ones.",
+      "reviewed": true
+    },
+    {
+      "id": "q-observability-2",
+      "skillId": "observability",
+      "difficulty": 4,
+      "stem": "What question does distributed tracing answer that metrics and logs alone struggle with?",
+      "options": [
+        {
+          "id": "a",
+          "text": "How much disk space remains on a node"
+        },
+        {
+          "id": "b",
+          "text": "Where a single slow request spent its time as it crossed service boundaries"
+        },
+        {
+          "id": "c",
+          "text": "How many errors occurred in total today"
+        },
+        {
+          "id": "d",
+          "text": "Which CPU model the host is running"
+        }
+      ],
+      "answer": "b",
+      "rationale": "Metrics aggregate away the individual request; logs are per-service. A trace stitches one request's spans back together.",
+      "reviewed": true
+    },
+    {
+      "id": "q-linalg-1",
+      "skillId": "linalg",
+      "difficulty": 3,
+      "stem": "Geometrically, what does multiplying a vector by a matrix do?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Always increases the vector's length"
+        },
+        {
+          "id": "b",
+          "text": "Computes the average of its components"
+        },
+        {
+          "id": "c",
+          "text": "Applies a linear transformation - some combination of rotation, scaling, shear and projection"
+        },
+        {
+          "id": "d",
+          "text": "Sorts its components in ascending order"
+        }
+      ],
+      "answer": "c",
+      "rationale": "The matrix's columns say where the basis vectors land; everything else follows by linearity.",
+      "reviewed": true
+    },
+    {
+      "id": "q-linalg-2",
+      "skillId": "linalg",
+      "difficulty": 4,
+      "stem": "For matrices A and B, when does AB = BA?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Always"
+        },
+        {
+          "id": "b",
+          "text": "Whenever both are square"
+        },
+        {
+          "id": "c",
+          "text": "Whenever both are invertible"
+        },
+        {
+          "id": "d",
+          "text": "Only in special cases - matrix multiplication does not commute in general"
+        }
+      ],
+      "answer": "d",
+      "rationale": "Composition of transformations is order-dependent: rotating then scaling is not the same as scaling then rotating.",
+      "reviewed": true
+    },
+    {
+      "id": "q-deep-learning-1",
+      "skillId": "deep-learning",
+      "difficulty": 3,
+      "stem": "Why does a neural network need non-linear activation functions?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Without them any stack of layers collapses into a single linear transformation"
+        },
+        {
+          "id": "b",
+          "text": "To make training converge faster"
+        },
+        {
+          "id": "c",
+          "text": "To normalise the input features"
+        },
+        {
+          "id": "d",
+          "text": "To prevent numerical overflow"
+        }
+      ],
+      "answer": "a",
+      "rationale": "A composition of linear maps is linear. Depth only buys expressiveness once a non-linearity sits between the layers.",
+      "reviewed": true
+    },
+    {
+      "id": "q-deep-learning-2",
+      "skillId": "deep-learning",
+      "difficulty": 4,
+      "stem": "What does dropout do?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Permanently removes neurons found to be unused"
+        },
+        {
+          "id": "b",
+          "text": "Randomly zeroes activations during training only, and is disabled at inference"
+        },
+        {
+          "id": "c",
+          "text": "Is applied at inference time to add output diversity"
+        },
+        {
+          "id": "d",
+          "text": "Drops training rows that produce a high loss"
+        }
+      ],
+      "answer": "b",
+      "rationale": "It stops units co-adapting during training. Forgetting to switch it off at inference is a classic source of unstable predictions.",
+      "reviewed": true
+    },
+    {
+      "id": "q-mlops-1",
+      "skillId": "mlops",
+      "difficulty": 3,
+      "stem": "What causes training/serving skew?",
+      "options": [
+        {
+          "id": "a",
+          "text": "The model was trained for too few epochs"
+        },
+        {
+          "id": "b",
+          "text": "The learning rate was too small"
+        },
+        {
+          "id": "c",
+          "text": "Features are computed differently in the training pipeline than in production"
+        },
+        {
+          "id": "d",
+          "text": "The random seed differed between runs"
+        }
+      ],
+      "answer": "c",
+      "rationale": "Two implementations of the same feature drift apart. Sharing one transformation path between training and serving is the fix.",
+      "reviewed": true
+    },
+    {
+      "id": "q-mlops-2",
+      "skillId": "mlops",
+      "difficulty": 4,
+      "stem": "A deployed model's accuracy degrades over months with no code change. What is the most likely cause?",
+      "options": [
+        {
+          "id": "a",
+          "text": "A memory leak in the serving process"
+        },
+        {
+          "id": "b",
+          "text": "Numerical overflow accumulating in the weights"
+        },
+        {
+          "id": "c",
+          "text": "Nothing can change without a deploy"
+        },
+        {
+          "id": "d",
+          "text": "Drift - the live data distribution has moved away from the training data"
+        }
+      ],
+      "answer": "d",
+      "rationale": "The world changes even when the model does not, which is why production models need monitoring and retraining, not just a launch.",
+      "reviewed": true
+    },
+    {
+      "id": "q-experiments-1",
+      "skillId": "experiments",
+      "difficulty": 3,
+      "stem": "Why are users assigned to A and B at random?",
+      "options": [
+        {
+          "id": "a",
+          "text": "So the groups are comparable and any difference can be attributed to the change"
+        },
+        {
+          "id": "b",
+          "text": "So the test reaches significance sooner"
+        },
+        {
+          "id": "c",
+          "text": "To spread load evenly across servers"
+        },
+        {
+          "id": "d",
+          "text": "To guarantee both groups end up exactly the same size"
+        }
+      ],
+      "answer": "a",
+      "rationale": "Randomisation balances both known and unknown confounders in expectation. Nothing else in the design does that.",
+      "reviewed": true
+    },
+    {
+      "id": "q-experiments-2",
+      "skillId": "experiments",
+      "difficulty": 4,
+      "stem": "You check results daily and stop as soon as p < 0.05. What does that do?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Nothing - it is the standard way to run a test"
+        },
+        {
+          "id": "b",
+          "text": "Inflates the false positive rate well above 5%"
+        },
+        {
+          "id": "c",
+          "text": "Has no effect once the sample is large"
+        },
+        {
+          "id": "d",
+          "text": "Reduces the false positive rate"
+        }
+      ],
+      "answer": "b",
+      "rationale": "Repeated looks give the noise repeated chances to cross the line. Fix the sample size in advance, or use a sequential test designed for peeking.",
+      "reviewed": true
+    },
+    {
+      "id": "q-python-3",
+      "skillId": "python",
+      "difficulty": 3,
+      "stem": "After `a = [1, 2, 3]`, `b = a`, `b.append(4)` — what is `a`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "[1, 2, 3, 4]"
+        },
+        {
+          "id": "b",
+          "text": "[1, 2, 3]"
+        },
+        {
+          "id": "c",
+          "text": "[4]"
+        },
+        {
+          "id": "d",
+          "text": "It raises a TypeError"
+        }
+      ],
+      "answer": "a",
+      "rationale": "Assignment binds a second name to the same list object; it does not copy it.",
+      "reviewed": true
+    },
+    {
+      "id": "q-python-4",
+      "skillId": "python",
+      "difficulty": 4,
+      "stem": "A loop does `for i in range(3): funcs.append(lambda: i)`. Every function returns 2. Why?",
+      "options": [
+        {
+          "id": "a",
+          "text": "range() is evaluated lazily, so only the last value survives"
+        },
+        {
+          "id": "b",
+          "text": "The lambda closes over the variable `i`, which is 2 once the loop ends"
+        },
+        {
+          "id": "c",
+          "text": "Lambdas cannot capture loop variables at all"
+        },
+        {
+          "id": "d",
+          "text": "All three lambdas are actually the same object"
+        }
+      ],
+      "answer": "b",
+      "rationale": "Closures capture the variable, not its value at the moment they are created. A default argument freezes the value instead.",
+      "reviewed": true
+    },
+    {
+      "id": "q-sql-3",
+      "skillId": "sql",
+      "difficulty": 3,
+      "stem": "Does `WHERE col <> \"x\"` return the rows where `col` is NULL?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Yes, since NULL is not equal to that value"
+        },
+        {
+          "id": "b",
+          "text": "Only if the column is indexed"
+        },
+        {
+          "id": "c",
+          "text": "No — a comparison with NULL is unknown, so those rows are excluded"
+        },
+        {
+          "id": "d",
+          "text": "No, and the query raises an error"
+        }
+      ],
+      "answer": "c",
+      "rationale": "NULL comparisons evaluate to unknown rather than true, so the filter drops them. Add an explicit IS NULL test if you want them back.",
+      "reviewed": true
+    },
+    {
+      "id": "q-sql-4",
+      "skillId": "sql",
+      "difficulty": 4,
+      "stem": "How does `COUNT(col)` differ from `COUNT(*)`?",
+      "options": [
+        {
+          "id": "a",
+          "text": "They are always identical"
+        },
+        {
+          "id": "b",
+          "text": "`COUNT(col)` is faster but approximate"
+        },
+        {
+          "id": "c",
+          "text": "`COUNT(*)` is the one that skips NULLs"
+        },
+        {
+          "id": "d",
+          "text": "It skips rows where `col` is NULL"
+        }
+      ],
+      "answer": "d",
+      "rationale": "`COUNT(*)` counts rows; `COUNT(col)` counts non-null values of that column.",
+      "reviewed": true
+    },
+    {
+      "id": "q-stats-3",
+      "skillId": "stats",
+      "difficulty": 3,
+      "stem": "Ice cream sales and drownings correlate at 0.9. What follows?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Nothing causal — a common cause, such as hot weather, can produce this"
+        },
+        {
+          "id": "b",
+          "text": "Ice cream consumption causes drownings"
+        },
+        {
+          "id": "c",
+          "text": "The correlation must be a calculation error"
+        },
+        {
+          "id": "d",
+          "text": "At least one of the variables is normally distributed"
+        }
+      ],
+      "answer": "a",
+      "rationale": "A confounder influencing both variables produces correlation with no causal link between them.",
+      "reviewed": true
+    },
+    {
+      "id": "q-stats-4",
+      "skillId": "stats",
+      "difficulty": 4,
+      "stem": "You run 20 independent tests at alpha = 0.05 on data with no real effect. How many significant results should you expect?",
+      "options": [
+        {
+          "id": "a",
+          "text": "None, because there is no real effect"
+        },
+        {
+          "id": "b",
+          "text": "About 1"
+        },
+        {
+          "id": "c",
+          "text": "About 5"
+        },
+        {
+          "id": "d",
+          "text": "About 10"
+        }
+      ],
+      "answer": "b",
+      "rationale": "Each test carries a 5% false positive rate, so 20 x 0.05 = 1. This is why multiple comparisons need a correction.",
+      "reviewed": true
+    },
+    {
+      "id": "q-ml-3",
+      "skillId": "ml",
+      "difficulty": 3,
+      "stem": "99% of your rows are class A. A model that always predicts A scores 99% accuracy. What does that tell you?",
+      "options": [
+        {
+          "id": "a",
+          "text": "The model has learned the task well"
+        },
+        {
+          "id": "b",
+          "text": "The dataset needs more features"
+        },
+        {
+          "id": "c",
+          "text": "Accuracy is uninformative here — precision, recall or a balanced metric is needed"
+        },
+        {
+          "id": "d",
+          "text": "The model is overfitting"
+        }
+      ],
+      "answer": "c",
+      "rationale": "On imbalanced data the majority-class baseline already scores high, so accuracy cannot separate a good model from a useless one.",
+      "reviewed": true
+    },
+    {
+      "id": "q-ml-4",
+      "skillId": "ml",
+      "difficulty": 4,
+      "stem": "Why keep a test set separate from the validation set used for tuning?",
+      "options": [
+        {
+          "id": "a",
+          "text": "To double the amount of training data"
+        },
+        {
+          "id": "b",
+          "text": "Because validation sets are always too small to trust"
+        },
+        {
+          "id": "c",
+          "text": "To make training run faster"
+        },
+        {
+          "id": "d",
+          "text": "Tuning against validation makes that score optimistic, so an untouched set is needed for an honest estimate"
+        }
+      ],
+      "answer": "d",
+      "rationale": "Every tuning decision leaks a little validation information into the model. Only data never used for any decision gives an unbiased estimate.",
+      "reviewed": true
+    },
+    {
+      "id": "q-wrangling-3",
+      "skillId": "wrangling",
+      "difficulty": 3,
+      "stem": "Why is dropping every row with a missing value risky?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Missingness is often not random, so the rows that survive are a biased sample"
+        },
+        {
+          "id": "b",
+          "text": "It always leaves too few rows to model"
+        },
+        {
+          "id": "c",
+          "text": "It silently changes the column data types"
+        },
+        {
+          "id": "d",
+          "text": "Most tools forbid it"
+        }
+      ],
+      "answer": "a",
+      "rationale": "If values go missing for a reason related to the outcome, dropping those rows removes exactly the cases you needed.",
+      "reviewed": true
+    },
+    {
+      "id": "q-wrangling-4",
+      "skillId": "wrangling",
+      "difficulty": 4,
+      "stem": "A date column read as text sorts \"2024-10-01\" before \"2024-9-01\". Why?",
+      "options": [
+        {
+          "id": "a",
+          "text": "The two dates are in different time zones"
+        },
+        {
+          "id": "b",
+          "text": "It is being sorted as text, where \"1\" comes before \"9\""
+        },
+        {
+          "id": "c",
+          "text": "October genuinely precedes September in ISO ordering"
+        },
+        {
+          "id": "d",
+          "text": "The sort defaulted to descending"
+        }
+      ],
+      "answer": "b",
+      "rationale": "Text sorts character by character. Parsing to a real date type, or zero-padding the month, fixes the order.",
+      "reviewed": true
+    },
+    {
+      "id": "q-viz-3",
+      "skillId": "viz",
+      "difficulty": 3,
+      "stem": "Why are rainbow colour maps discouraged for continuous data?",
+      "options": [
+        {
+          "id": "a",
+          "text": "They render more slowly than other maps"
+        },
+        {
+          "id": "b",
+          "text": "They cannot represent negative values"
+        },
+        {
+          "id": "c",
+          "text": "They are not perceptually uniform, so they create banding the data does not contain"
+        },
+        {
+          "id": "d",
+          "text": "They require a legend, unlike other maps"
+        }
+      ],
+      "answer": "c",
+      "rationale": "Equal steps in the data become unequal steps in perceived colour, inventing boundaries where the data is smooth.",
+      "reviewed": true
+    },
+    {
+      "id": "q-viz-4",
+      "skillId": "viz",
+      "difficulty": 4,
+      "stem": "When is a chart with two different y-axes misleading?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Only when the two series use different units"
+        },
+        {
+          "id": "b",
+          "text": "Only when there are more than two series"
+        },
+        {
+          "id": "c",
+          "text": "Never, as long as both axes are labelled"
+        },
+        {
+          "id": "d",
+          "text": "Almost always — the two scales can be chosen to manufacture or hide a relationship"
+        }
+      ],
+      "answer": "d",
+      "rationale": "The apparent crossing point is an artefact of two independently chosen scales. Small multiples, or indexing both series to a common baseline, are honest alternatives.",
+      "reviewed": true
+    },
+    {
+      "id": "q-mlops-3",
+      "skillId": "mlops",
+      "difficulty": 3,
+      "stem": "Why version the training data alongside the model?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Without it you cannot reproduce a result or explain a regression"
+        },
+        {
+          "id": "b",
+          "text": "To reduce storage costs"
+        },
+        {
+          "id": "c",
+          "text": "Because models cannot load unversioned data"
+        },
+        {
+          "id": "d",
+          "text": "To make training run faster"
+        }
+      ],
+      "answer": "a",
+      "rationale": "A model is a function of its code and its data. Versioning only the code leaves half the experiment unrecorded.",
+      "reviewed": true
+    },
+    {
+      "id": "q-mlops-4",
+      "skillId": "mlops",
+      "difficulty": 4,
+      "stem": "What is a shadow deployment?",
+      "options": [
+        {
+          "id": "a",
+          "text": "The model runs only outside business hours"
+        },
+        {
+          "id": "b",
+          "text": "The new model scores live traffic in parallel, but its predictions are not served to users"
+        },
+        {
+          "id": "c",
+          "text": "A standby copy runs on a second server purely for failover"
+        },
+        {
+          "id": "d",
+          "text": "Traffic is split evenly between the old and new versions"
+        }
+      ],
+      "answer": "b",
+      "rationale": "It measures the new model on real traffic with no user-facing risk. Splitting traffic between versions is an A/B test, not a shadow.",
+      "reviewed": true
+    },
+    {
+      "id": "q-deep-learning-3",
+      "skillId": "deep-learning",
+      "difficulty": 3,
+      "stem": "What does a learning rate that is far too large usually cause?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Slow but steady convergence"
+        },
+        {
+          "id": "b",
+          "text": "Overfitting to the training set"
+        },
+        {
+          "id": "c",
+          "text": "The loss to oscillate or diverge instead of converging"
+        },
+        {
+          "id": "d",
+          "text": "Vanishing gradients"
+        }
+      ],
+      "answer": "c",
+      "rationale": "Each step overshoots the minimum, so the loss bounces around or grows rather than settling.",
+      "reviewed": true
+    },
+    {
+      "id": "q-deep-learning-4",
+      "skillId": "deep-learning",
+      "difficulty": 4,
+      "stem": "Why does batch normalisation behave differently at inference?",
+      "options": [
+        {
+          "id": "a",
+          "text": "It is switched off entirely"
+        },
+        {
+          "id": "b",
+          "text": "It normalises across features rather than across examples"
+        },
+        {
+          "id": "c",
+          "text": "It is replaced by layer normalisation"
+        },
+        {
+          "id": "d",
+          "text": "It uses running statistics collected during training instead of the current batch"
+        }
+      ],
+      "answer": "d",
+      "rationale": "Inference may see a single example, where batch statistics are meaningless, so stored population estimates are used instead.",
+      "reviewed": true
+    }
+  ]
+}

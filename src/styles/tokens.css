@@ -1,0 +1,151 @@
+/* ---------------------------------------------------------------
+   Design tokens. Every colour in the app resolves through here.
+   To retheme the product, edit this file and nothing else.
+
+   Light is defined on bare :root. Dark is redefined twice:
+   once for the system preference, once for an explicit choice,
+   so the toggle wins in both directions.
+   --------------------------------------------------------------- */
+
+:root {
+  /* surfaces */
+  --bg:            #ffffff;   /* page */
+  --bg-sunken:     #fafaf9;   /* rails, wells, table headers */
+  --bg-hover:      #f2f2f0;
+  --bg-active:     #eaeae7;
+
+  /* lines — the primary structural device in this UI */
+  --line:          #e4e4e1;   /* default separator */
+  --line-strong:   #cbcbc6;   /* emphasis, focused inputs */
+
+  /* text */
+  --fg:            #191918;   /* primary */
+  --fg-muted:      #5c5c57;   /* secondary */
+  --fg-faint:      #8a8a83;   /* meta, labels, disabled */
+
+  /* accent — used sparingly: current state, primary action, focus */
+  --accent:        #2450d8;
+  --accent-hover:  #1c41b4;
+  --accent-fg:     #ffffff;
+  --accent-wash:   #eef1fd;   /* selected row / tinted panel */
+  --accent-line:   #c3cef7;
+
+  /* status */
+  --ok:            #17803d;
+  --ok-wash:       #eaf6ee;
+  --ok-line:       #b9dfc7;
+  --warn:          #8a6100;
+  --warn-wash:     #fbf3e0;
+  --warn-line:     #e7d3a4;
+  --danger:        #b4231f;
+  --danger-wash:   #fbecec;
+  --danger-line:   #eec4c3;
+
+  /* meter track (skill blocks, progress bars) */
+  --track:         #e8e8e5;
+
+  /* ---- non-colour tokens: identical across themes ---- */
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+               "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas,
+               "Liberation Mono", monospace;
+
+  /* type scale */
+  --t-xs:   11px;
+  --t-sm:   12px;
+  --t-base: 13px;
+  --t-md:   14px;
+  --t-lg:   16px;
+  --t-xl:   20px;
+  --t-2xl:  26px;
+
+  /* spacing — strict 4px grid */
+  --s-1:  4px;
+  --s-2:  8px;
+  --s-3:  12px;
+  --s-4:  16px;
+  --s-5:  20px;
+  --s-6:  24px;
+  --s-8:  32px;
+  --s-10: 40px;
+  --s-12: 48px;
+
+  --radius:    4px;
+  --radius-sm: 3px;
+
+  --sidebar-w: 232px;
+  --topbar-h:  49px;
+  --rail-w:    320px;
+  --content-max: 1180px;
+
+  --dur: 120ms;
+}
+
+/* dark — system preference (only when no explicit light choice) */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg:            #131315;
+    --bg-sunken:     #0e0e10;
+    --bg-hover:      #1c1c1f;
+    --bg-active:     #232327;
+
+    --line:          #2a2a2e;
+    --line-strong:   #3e3e44;
+
+    --fg:            #eaeaec;
+    --fg-muted:      #a0a0a8;
+    --fg-faint:      #71717a;
+
+    --accent:        #7195ff;
+    --accent-hover:  #8fabff;
+    --accent-fg:     #0d1020;
+    --accent-wash:   #171d33;
+    --accent-line:   #2c3663;
+
+    --ok:            #4cc47c;
+    --ok-wash:       #10241a;
+    --ok-line:       #1f4530;
+    --warn:          #d3a049;
+    --warn-wash:     #241d0e;
+    --warn-line:     #453720;
+    --danger:        #f0716a;
+    --danger-wash:   #2a1414;
+    --danger-line:   #4d2725;
+
+    --track:         #26262a;
+  }
+}
+
+/* dark — explicit choice */
+:root[data-theme='dark'] {
+  --bg:            #131315;
+  --bg-sunken:     #0e0e10;
+  --bg-hover:      #1c1c1f;
+  --bg-active:     #232327;
+
+  --line:          #2a2a2e;
+  --line-strong:   #3e3e44;
+
+  --fg:            #eaeaec;
+  --fg-muted:      #a0a0a8;
+  --fg-faint:      #71717a;
+
+  --accent:        #7195ff;
+  --accent-hover:  #8fabff;
+  --accent-fg:     #0d1020;
+  --accent-wash:   #171d33;
+  --accent-line:   #2c3663;
+
+  --ok:            #4cc47c;
+  --ok-wash:       #10241a;
+  --ok-line:       #1f4530;
+  --warn:          #d3a049;
+  --warn-wash:     #241d0e;
+  --warn-line:     #453720;
+  --danger:        #f0716a;
+  --danger-wash:   #2a1414;
+  --danger-line:   #4d2725;
+
+  --track:         #26262a;
+}

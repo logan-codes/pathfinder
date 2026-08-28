@@ -1,0 +1,15 @@
+# No Python in this project.
+#
+# The backend is Node + Express + TypeScript, in `server/`, sharing the same
+# domain layer as the UI (`src/lib/`). Everything installs from package.json.
+#
+#   1. Install Node.js 22 LTS  ->  https://nodejs.org/en/download
+#   2. npm install
+#   3. npm run server     # API on http://127.0.0.1:8787
+#   4. npm run dev        # UI on  http://localhost:5173  (proxies /api)
+#
+# See REQUIREMENTS.md for the full list, and server/README.md for the API.
+#
+# An earlier draft of this file promised a FastAPI service. That was dropped:
+# the whole stack is TypeScript, and a second language would have meant a
+# second copy of the engine, the catalogue and the types to keep in step.
