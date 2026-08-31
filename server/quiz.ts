@@ -1,8 +1,11 @@
 /**
  * The assessment item bank.
  *
- * Items are authored offline and committed (`data/quiz-bank.json`). This
- * module only reads them. Generating questions per request would destroy the
+ * Items are authored offline and committed (`data/quiz-bank.json`), and
+ * imported as a module rather than read from disk: a bundler then carries
+ * the bank inside the build, so there is no path to resolve at runtime and
+ * no deployment that can boot without its questions. This module only reads
+ * them. Generating questions per request would destroy the
  * properties that make an assessment worth having — items could not be
  * compared across learners, calibrated for difficulty from response data, or
  * A/B tested, and no human would ever have reviewed the answer keys.
@@ -11,31 +14,9 @@
  * graded here.
  */
 
-import { existsSync, readFileSync } from 'node:fs'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { z } from 'zod'
-import type { GradedItem } from './mastery'
-
-const here = path.dirname(fileURLToPath(import.meta.url))
-
-/**
- * Where the bank might be, in order of preference.
- *
- * Locally there is only one answer: one directory up from `server/`. The
- * second exists because a serverless bundler rewrites the module layout, so
- * `import.meta.url` no longer sits a fixed distance from the repository root
- * and the deployment's working directory becomes the only reliable anchor.
- * Checking both costs one `existsSync` at startup and removes an entire
- * class of "passes locally, 500s in production".
- */
-const BANK_CANDIDATES = [
-  path.join(here, '..', 'data', 'quiz-bank.json'),
-  path.join(process.cwd(), 'data', 'quiz-bank.json'),
-]
-
-const BANK_PATH =
-  BANK_CANDIDATES.find((candidate) => existsSync(candidate)) ?? BANK_CANDIDATES[0]
+import type { GradedItem } from './mastery.js'
+import bankJson from '../data/quiz-bank.json' with { type: 'json' }
 
 const QuizOptionSchema = z.object({
   id: z.string().min(1).max(8),
@@ -77,14 +58,7 @@ export interface ServedItem {
 }
 
 function loadBank() {
-  let raw: string
-  try {
-    raw = readFileSync(BANK_PATH, 'utf8')
-  } catch (cause) {
-    throw new Error(`Could not read the quiz bank at ${BANK_PATH}`, { cause })
-  }
-
-  const parsed = QuizBankSchema.safeParse(JSON.parse(raw))
+  const parsed = QuizBankSchema.safeParse(bankJson)
   if (!parsed.success) {
     const first = parsed.error.issues[0]
     throw new Error(

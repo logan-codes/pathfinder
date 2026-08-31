@@ -40,22 +40,22 @@ import {
   PORT,
   SUPABASE_URL,
   TRUST_PROXY,
-} from './config'
-import { budgetReport } from './budget'
-import { attachSession, errorHandler, notFound, rateLimit, requireApiKey } from './http'
-import { llmEnabled, modelFor, resolveChain } from './providers'
-import { bankMeta } from './quiz'
-import { supabaseAdminEnabled, supabaseEnabled } from './supabase'
-import { authRouter } from './routes/auth'
-import { catalogRouter } from './routes/catalog'
-import { chatRouter } from './routes/chat'
-import { goalRouter } from './routes/goal'
-import { healthRouter } from './routes/health'
-import { narrateRouter } from './routes/narrate'
-import { pathRouter } from './routes/path'
-import { providersRouter } from './routes/providers'
-import { quizRouter } from './routes/quiz'
-import { rootRouter } from './routes/root'
+} from './config.js'
+import { budgetReport } from './budget.js'
+import { attachSession, errorHandler, notFound, rateLimit, requireApiKey } from './http.js'
+import { llmEnabled, modelFor, resolveChain } from './providers.js'
+import { bankMeta } from './quiz.js'
+import { supabaseAdminEnabled, supabaseEnabled } from './supabase.js'
+import { authRouter } from './routes/auth.js'
+import { catalogRouter } from './routes/catalog.js'
+import { chatRouter } from './routes/chat.js'
+import { goalRouter } from './routes/goal.js'
+import { healthRouter } from './routes/health.js'
+import { narrateRouter } from './routes/narrate.js'
+import { pathRouter } from './routes/path.js'
+import { providersRouter } from './routes/providers.js'
+import { quizRouter } from './routes/quiz.js'
+import { rootRouter } from './routes/root.js'
 
 export function createApp() {
   const app = express()

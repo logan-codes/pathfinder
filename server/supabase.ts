@@ -29,8 +29,8 @@ import {
   type SupabaseClient,
   type User as SupabaseUser,
 } from '@supabase/supabase-js'
-import type { LearnerProfile } from '../src/lib/types'
-import { SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL } from './config'
+import type { LearnerProfile } from '../src/lib/types.js'
+import { SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL } from './config.js'
 
 export const PROFILES_TABLE = 'profiles'
 

@@ -1,21 +1,28 @@
 /**
  * The Vercel entry point.
  *
- * There is no long-lived process to `listen()` here, so this file contains
- * nothing but the app: `createApp()` returns an Express instance, an Express
- * instance is already a `(req, res)` function, and that is exactly the shape
- * of a Vercel Node function. No adapter, and no second copy of the wiring —
- * this is the same app `npm run server` starts locally, which is the whole
- * reason `server/index.ts` exports `createApp` and only listens when it is
- * the entrypoint.
+ * There is no long-lived process to `listen()` here, so this file is nothing
+ * but the app: `createApp()` returns an Express instance, an Express instance
+ * is already a `(req, res)` function, and that is exactly the shape of a
+ * Vercel Node function. No adapter, and no second copy of the wiring — this
+ * is the same app `npm run server` starts locally, which is why
+ * `server/index.ts` exports `createApp` and only listens when run directly.
+ *
+ * Note the `.js` on the import, and on every relative import under `server/`
+ * and `src/lib/`. Vercel compiles TypeScript per file and copies specifiers
+ * through verbatim, so what Node's ESM loader receives is what was written.
+ * Node requires an explicit extension on a relative specifier; `tsx`, Vite
+ * and `tsc` are all willing to guess one, which is why an extensionless
+ * import works in every local runner and fails only once deployed. The `.js`
+ * names the compiled output and TypeScript maps it back to the `.ts` source,
+ * so one spelling satisfies both.
  *
  * Built once at module scope rather than per request. Vercel reuses a warm
- * instance across invocations, so the router tree, the config parse and the
- * quiz bank read happen once per cold start instead of once per request.
+ * instance across invocations, so the router tree and the config parse cost
+ * one cold start rather than one request.
  *
  * Two properties of this environment the local server never has to think
- * about. Both are set as environment variables, not code — see the Vercel
- * section of `.env.example`:
+ * about, both set as environment variables — see `.env.example`:
  *
  *   NODEJS_HELPERS=0          Vercel otherwise wraps req/res with its own
  *                             body parsing, which races `express.json()` for
@@ -29,13 +36,13 @@
  *                             `config.ts` asks for before trusting it.
  *
  * One honest limitation. The budget counters in `budget.ts` and the limiter
- * in `http.ts` are in-process, so on Vercel they are per warm instance
- * rather than per deployment: concurrent traffic gets more than one instance
- * and each carries its own ceiling. Both modules already say this; serverless
- * is where it stops being theoretical. The fix is the shared counter
+ * in `http.ts` are in-process, so here they are per warm instance rather
+ * than per deployment: concurrent traffic gets more than one instance and
+ * each carries its own ceiling. Both modules already say so; serverless is
+ * where it stops being theoretical. The fix is the shared counter
  * `budget.ts` names, and the interface does not change.
  */
 
-import { createApp } from '../server/index'
+import { createApp } from '../server/index.js'
 
 export default createApp()

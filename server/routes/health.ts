@@ -12,14 +12,14 @@
  */
 
 import { Router } from 'express'
-import { RESOURCES, SKILLS } from '../../src/lib/catalog'
-import { GOALS } from '../../src/lib/goals'
-import { budgetReport } from '../budget'
-import { API_KEY, INJECTION_POLICY, LLM_MODE, LLM_RATE_LIMIT, LLM_TIMEOUT_MS } from '../config'
-import { isAuthenticated } from '../http'
-import { llmStatus } from '../llm'
-import { llmEnabled, providerStatuses, resolveChain } from '../providers'
-import { bankMeta } from '../quiz'
+import { RESOURCES, SKILLS } from '../../src/lib/catalog.js'
+import { GOALS } from '../../src/lib/goals.js'
+import { budgetReport } from '../budget.js'
+import { API_KEY, INJECTION_POLICY, LLM_MODE, LLM_RATE_LIMIT, LLM_TIMEOUT_MS } from '../config.js'
+import { isAuthenticated } from '../http.js'
+import { llmStatus } from '../llm.js'
+import { llmEnabled, providerStatuses, resolveChain } from '../providers.js'
+import { bankMeta } from '../quiz.js'
 
 export const healthRouter = Router()
 

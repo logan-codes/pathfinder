@@ -7,8 +7,8 @@
  */
 
 import { Router } from 'express'
-import { LLM_MODE } from '../config'
-import { llmEnabled, modelFor, resolveChain } from '../providers'
+import { LLM_MODE } from '../config.js'
+import { llmEnabled, modelFor, resolveChain } from '../providers.js'
 
 export const rootRouter = Router()
 

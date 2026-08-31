@@ -6,11 +6,11 @@
  */
 
 import { Router } from 'express'
-import { buildPath, profileSkills, skillGaps } from '../../src/lib/engine'
-import { getGoal } from '../../src/lib/goals'
-import { PACE_HOURS } from '../../src/lib/types'
-import { parseBody } from '../http'
-import { PathRequest, SkillsRequest } from '../schema'
+import { buildPath, profileSkills, skillGaps } from '../../src/lib/engine.js'
+import { getGoal } from '../../src/lib/goals.js'
+import { PACE_HOURS } from '../../src/lib/types.js'
+import { parseBody } from '../http.js'
+import { PathRequest, SkillsRequest } from '../schema.js'
 
 export const pathRouter = Router()
 

@@ -26,14 +26,14 @@
  */
 
 import { Router } from 'express'
-import { respond } from '../../src/lib/assistant'
-import { buildPath } from '../../src/lib/engine'
-import { getGoal } from '../../src/lib/goals'
-import type { LearnerProfile } from '../../src/lib/types'
-import { screenInput } from '../guard'
-import { asyncHandler, parseBody } from '../http'
-import { converse, extractGoal, llmStatus, type GoalExtraction } from '../llm'
-import { ChatRequest } from '../schema'
+import { respond } from '../../src/lib/assistant.js'
+import { buildPath } from '../../src/lib/engine.js'
+import { getGoal } from '../../src/lib/goals.js'
+import type { LearnerProfile } from '../../src/lib/types.js'
+import { screenInput } from '../guard.js'
+import { asyncHandler, parseBody } from '../http.js'
+import { converse, extractGoal, llmStatus, type GoalExtraction } from '../llm.js'
+import { ChatRequest } from '../schema.js'
 
 export const chatRouter = Router()
 

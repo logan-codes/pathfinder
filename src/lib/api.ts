@@ -14,8 +14,8 @@
  * never reached the API at all.
  */
 
-import type { AssistantReply } from './assistant'
-import type { SkillGap } from './engine'
+import type { AssistantReply } from './assistant.js'
+import type { SkillGap } from './engine.js'
 import type {
   ChatMessage,
   Goal,
@@ -28,7 +28,7 @@ import type {
   Resource,
   Skill,
   SkillId,
-} from './types'
+} from './types.js'
 
 let base = '/api'
 
