@@ -33,10 +33,10 @@
 import type { AIMessage } from '@langchain/core/messages'
 import { HumanMessage, SystemMessage } from '@langchain/core/messages'
 import { z } from 'zod'
-import { ALL_TAGS, SKILLS, getResource, skillName } from '../src/lib/catalog'
-import { pathResourceIds, profileSkills, skillGaps } from '../src/lib/engine'
-import { GOAL_BY_ID, GOALS, matchGoal } from '../src/lib/goals'
-import { templateIntro } from '../src/lib/onboarding'
+import { ALL_TAGS, SKILLS, getResource, skillName } from '../src/lib/catalog.js'
+import { pathResourceIds, profileSkills, skillGaps } from '../src/lib/engine.js'
+import { GOAL_BY_ID, GOALS, matchGoal } from '../src/lib/goals.js'
+import { templateIntro } from '../src/lib/onboarding.js'
 import {
   PACE_HOURS,
   type Goal,

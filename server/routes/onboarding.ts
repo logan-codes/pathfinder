@@ -12,9 +12,9 @@
  */
 
 import { Router } from 'express'
-import { asyncHandler, parseBody } from '../http'
-import { onboardingFollowup, onboardingIntro } from '../llm'
-import { OnboardingRequest } from '../schema'
+import { asyncHandler, parseBody } from '../http.js'
+import { onboardingFollowup, onboardingIntro } from '../llm.js'
+import { OnboardingRequest } from '../schema.js'
 
 export const onboardingRouter = Router()
 

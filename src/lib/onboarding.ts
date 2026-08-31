@@ -11,8 +11,8 @@
  * what lets the last step preview a real path before anything is committed.
  */
 
-import { ALL_TAGS, skillName } from './catalog'
-import { GOALS, getGoal } from './goals'
+import { ALL_TAGS, skillName } from './catalog.js'
+import { GOALS, getGoal } from './goals.js'
 import {
   LEVEL_LABELS,
   PACE_LABELS,
@@ -20,7 +20,7 @@ import {
   type Level,
   type Pace,
   type SkillId,
-} from './types'
+} from './types.js'
 
 export type StepKind = 'text' | 'single' | 'multi' | 'levels'
 
