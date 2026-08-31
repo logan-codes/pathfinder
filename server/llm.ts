@@ -1,5 +1,5 @@
 /**
- * The three places a language model is allowed to touch this product.
+ * The five places a language model is allowed to touch this product.
  *
  *   1. `extractGoal` — free text in, one of the catalogue's known goal ids
  *      out. The model chooses from a closed set, so it cannot invent a goal
@@ -9,6 +9,10 @@
  *      asked what the reasons are.
  *   3. `converse` — the same principle applied to conversation. The rules
  *      have already produced a correct answer; the model says it well.
+ *   4. `onboardingFollowup` — decides whether the fixed questionnaire left
+ *      something ambiguous, and picks which catalogue ids to ask about. It
+ *      writes the wording; it cannot invent an option.
+ *   5. `onboardingIntro` — narration again, applied to the answers.
  *
  * Anything the model gets wrong is a wording problem. Selection, ordering
  * and scheduling stay in `src/lib/engine.ts`, deterministic.
@@ -29,9 +33,10 @@
 import type { AIMessage } from '@langchain/core/messages'
 import { HumanMessage, SystemMessage } from '@langchain/core/messages'
 import { z } from 'zod'
-import { getResource, skillName } from '../src/lib/catalog'
+import { ALL_TAGS, SKILLS, getResource, skillName } from '../src/lib/catalog'
 import { pathResourceIds, profileSkills, skillGaps } from '../src/lib/engine'
 import { GOAL_BY_ID, GOALS, matchGoal } from '../src/lib/goals'
+import { templateIntro } from '../src/lib/onboarding'
 import {
   PACE_HOURS,
   type Goal,
@@ -799,5 +804,314 @@ export async function converse(input: ConversationInput): Promise<Conversation> 
     }
     degrade('assistant reply', error)
     return { ...rules, degraded: true, violations }
+  }
+}
+
+// ---- edge 4: onboarding follow-ups -------------------------------------
+//
+// The questionnaire itself is committed data — the same steps for everyone,
+// model or no model. This edge only decides whether the fixed steps left
+// something genuinely ambiguous, and if so asks at most two more questions.
+//
+// The model writes the wording and nothing else. Every option it can offer is
+// an id already in the catalogue, checked against it on the way back, so a
+// follow-up can only move the profile in ways the static steps could too.
+
+/** What one follow-up option writes when the learner picks it. */
+export interface FollowupOption {
+  id: string
+  label: string
+  /** An interest tag, when that is what the question is about. */
+  tag?: string
+  /** A skill the learner is asserting hands-on familiarity with. */
+  skillId?: SkillId
+}
+
+export interface FollowupQuestion {
+  id: string
+  prompt: string
+  options: FollowupOption[]
+}
+
+export interface Followups {
+  questions: FollowupQuestion[]
+  source: 'llm' | 'none'
+  degraded: boolean
+  provider: ProviderId | null
+  model: string | null
+}
+
+/** One answered questionnaire step, as the client records it. */
+export interface OnboardingAnswer {
+  stepId: string
+  values: string[]
+}
+
+const followupValues = [...ALL_TAGS, ...SKILLS.map((skill) => skill.id)]
+
+const FOLLOWUP_SCHEMA = {
+  type: 'object',
+  properties: {
+    questions: {
+      type: 'array',
+      maxItems: 2,
+      items: {
+        type: 'object',
+        properties: {
+          prompt: {
+            type: 'string',
+            description: 'The question, one sentence, addressed to the learner as "you".',
+          },
+          kind: {
+            type: 'string',
+            enum: ['interest', 'skill'],
+            description:
+              'interest — the options are things they might want to work on. skill — the options are things they may already have hands-on experience with.',
+          },
+          values: {
+            type: 'array',
+            minItems: 2,
+            maxItems: 6,
+            items: { type: 'string', enum: followupValues },
+            description: 'The options to offer, as ids from the list. Nothing else is allowed.',
+          },
+        },
+        required: ['prompt', 'kind', 'values'],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ['questions'],
+  additionalProperties: false,
+} as const
+
+const FollowupResult = z.object({
+  questions: z
+    .array(
+      z.object({
+        prompt: z.string(),
+        kind: z.enum(['interest', 'skill']),
+        values: z.array(z.string()).min(1).max(6),
+      }),
+    )
+    .max(2),
+})
+
+const FOLLOWUP_RULES = [
+  'A learner has just answered a fixed onboarding questionnaire. You decide whether anything important is still missing, and if so ask at most two short follow-up questions.',
+  '',
+  'Ask only when one of these is true, and return an empty list when none of them is:',
+  '- Their stated interests do not overlap the skills their goal needs, so the planner has nothing to break ties with. This is the usual reason to ask.',
+  '- No goal was resolved from their statement, so nothing is known about where they are heading.',
+  '- They rated themselves at a level that contradicts what they said about their experience.',
+  '',
+  'Hard rules:',
+  '- One question is almost always enough. Asking a second for the sake of it wastes the only attention you get.',
+  '- Every option must be an id from the allowed list. You are choosing which to put in front of them, not inventing new ones.',
+  '- One sentence per question. No preamble, no explanation, no greeting.',
+  '- Never ask about salary, employer, age, location, health, or anything else that is none of the plan’s business.',
+  '- Do not re-ask something the answers below already say.',
+]
+
+function answerSheet(profile: LearnerProfile, answers: OnboardingAnswer[]): string {
+  const goal = GOAL_BY_ID[profile.goalId ?? '']
+  const gaps = goal
+    ? Object.keys(goal.target)
+        .map(skillName)
+        .join(', ')
+    : 'no goal resolved'
+
+  return [
+    `Learner name: ${safeField(profile.name)}`,
+    `Goal: ${goal ? `${goal.title} — ${goal.blurb}` : 'not resolved from their statement'}`,
+    `Skills that goal needs: ${gaps}`,
+    `Stated experience: ${profile.experience}`,
+    `Weekly pace: ${profile.pace}`,
+    `Interests they picked: ${profile.interests.map((i) => safeField(i, 60)).join(', ') || 'none'}`,
+    `Things they would rather avoid: ${profile.avoid.map((i) => safeField(i, 60)).join(', ') || 'none'}`,
+    `Self-rated skills: ${
+      Object.entries(profile.selfRated)
+        .map(([skillId, level]) => `${skillName(skillId)} ${level}`)
+        .join(', ') || 'none'
+    }`,
+    'Raw answers:',
+    ...answers.map(
+      (answer) => `- ${safeField(answer.stepId, 60)}: ${answer.values.map((v) => safeField(v, 120)).join(', ')}`,
+    ),
+  ].join('\n')
+}
+
+const NO_FOLLOWUPS: Followups = {
+  questions: [],
+  source: 'none',
+  degraded: false,
+  provider: null,
+  model: null,
+}
+
+export async function onboardingFollowup(
+  profile: LearnerProfile,
+  answers: OnboardingAnswer[],
+  options: EdgeOptions = {},
+): Promise<Followups> {
+  // The deterministic answer to "is anything missing?" is "no". That is not a
+  // degraded questionnaire — it is the questionnaire, which is fixed and
+  // complete on its own.
+  if (!llmEnabled()) return NO_FOLLOWUPS
+
+  const facts = answerSheet(profile, answers)
+  const fence = makeFence()
+
+  try {
+    const result = await callModel({
+      tag: 'onboarding follow-up',
+      provider: options.provider,
+      maxTokens: EDGE_MAX_TOKENS,
+      system: [
+        ...FOLLOWUP_RULES,
+        '',
+        `Allowed option ids: ${followupValues.join(', ')}.`,
+        '',
+        fenceRule(fence),
+      ].join('\n'),
+      human: ['What they answered:', fenced(fence, facts)].join('\n\n'),
+      jsonSchema: { name: 'onboarding_followup', schema: FOLLOWUP_SCHEMA },
+    })
+
+    const validated = FollowupResult.safeParse(result.parsed)
+    if (!validated.success) throw new Error('structured output was empty or failed to parse')
+
+    const tags = new Set(ALL_TAGS)
+    const skills = new Set(SKILLS.map((skill) => skill.id))
+    const questions: FollowupQuestion[] = []
+
+    for (const [index, question] of validated.data.questions.entries()) {
+      const prompt = question.prompt.trim()
+      if (!prompt) continue
+
+      // Prose shown to the learner, so it faces the same output check as any
+      // other prose this server produces.
+      const violations = validateOutput(prompt, facts, {
+        maxSentences: 1,
+        maxChars: 200,
+        fence,
+      })
+      if (violations.length > 0) throw new GuardrailError(violations)
+
+      // The enum in the schema is a constraint on a good day and a suggestion
+      // on a bad one. The catalogue decides.
+      const seen = new Set<string>()
+      const opts: FollowupOption[] = []
+      for (const value of question.values) {
+        if (seen.has(value)) continue
+        seen.add(value)
+        if (question.kind === 'interest' && tags.has(value)) {
+          opts.push({ id: value, label: value, tag: value })
+        } else if (question.kind === 'skill' && skills.has(value)) {
+          opts.push({ id: value, label: skillName(value), skillId: value })
+        }
+      }
+
+      if (opts.length < 2) continue
+      questions.push({ id: `followup-${index + 1}`, prompt, options: opts })
+    }
+
+    return {
+      questions,
+      source: 'llm',
+      degraded: false,
+      provider: result.provider,
+      model: result.model,
+    }
+  } catch (error) {
+    if (error instanceof GuardrailError) {
+      llmStatus.guardrailBlocks += 1
+      llmStatus.lastViolations = error.violations
+    }
+    degrade('onboarding follow-up', error)
+    return { ...NO_FOLLOWUPS, degraded: true }
+  }
+}
+
+// ---- edge 5: the closing summary ---------------------------------------
+//
+// Same shape as narration: the facts are already decided, and the model is
+// asked only to say them back in a way the learner recognises themselves in.
+
+export interface Intro {
+  text: string
+  source: 'llm' | 'template'
+  degraded: boolean
+  provider: ProviderId | null
+  model: string | null
+  violations: Violation[]
+}
+
+const INTRO_RULES = [
+  'You summarise what a learner just told an onboarding questionnaire, back to them, in two or three sentences.',
+  '',
+  'Hard rules:',
+  '- Use only the facts given. Never add a skill, course, provider, duration, number or claim that is not there.',
+  '- Never promise a job, a salary, a grade or a timeline.',
+  '- Address them as "you". No greeting, no sign-off, no bullet points, no heading.',
+  '- If they said they want to avoid something, acknowledge it plainly rather than talking them out of it.',
+  '- Thin answers get a short summary. Padding is worse than brevity.',
+].join('\n')
+
+export async function onboardingIntro(
+  profile: LearnerProfile,
+  answers: OnboardingAnswer[],
+  options: EdgeOptions = {},
+): Promise<Intro> {
+  const template = templateIntro(profile)
+  const offline: Intro = {
+    text: template,
+    source: 'template',
+    degraded: false,
+    provider: null,
+    model: null,
+    violations: [],
+  }
+
+  if (!llmEnabled()) return offline
+
+  const facts = answerSheet(profile, answers)
+  const fence = makeFence()
+
+  try {
+    const result = await callModel({
+      tag: 'onboarding summary',
+      provider: options.provider,
+      maxTokens: EDGE_MAX_TOKENS,
+      system: [INTRO_RULES, '', fenceRule(fence)].join('\n'),
+      human: [fenced(fence, facts), '', 'Write the summary.'].join('\n'),
+    })
+
+    if (!result.text) throw new Error('model returned no text')
+
+    const violations = validateOutput(result.text, facts, {
+      maxSentences: MAX_NARRATION_SENTENCES,
+      maxChars: MAX_NARRATION_CHARS,
+      prose: true,
+      fence,
+    })
+    if (violations.length > 0) throw new GuardrailError(violations)
+
+    return {
+      text: result.text,
+      source: 'llm',
+      degraded: false,
+      provider: result.provider,
+      model: result.model,
+      violations: [],
+    }
+  } catch (error) {
+    const violations = error instanceof GuardrailError ? error.violations : []
+    if (violations.length > 0) {
+      llmStatus.guardrailBlocks += 1
+      llmStatus.lastViolations = violations
+    }
+    degrade('onboarding summary', error)
+    return { ...offline, degraded: true, violations }
   }
 }

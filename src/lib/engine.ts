@@ -24,6 +24,7 @@ import {
   type PathItem,
   type Reason,
   type Resource,
+  type ResourceId,
   type SkillId,
 } from './types'
 
@@ -121,6 +122,20 @@ function interestBonus(resource: Resource, interests: string[]): number {
 }
 
 /**
+ * The mirror of `interestBonus`, and deliberately weaker than the gap value
+ * it competes with. A dislike is a preference, not a veto: it decides between
+ * two resources that would close the same gap, and it never keeps a genuine
+ * prerequisite out of the path. Something the learner has to do anyway is
+ * better done knowingly, with a reason attached — see `explain`.
+ */
+function avoidPenalty(resource: Resource, avoid: string[]): number {
+  if (avoid.length === 0) return 0
+  const tags = resource.tags ?? []
+  const hits = tags.filter((t) => avoid.includes(t)).length
+  return hits * 0.5
+}
+
+/**
  * Step 3 — greedy selection.
  * Each round picks the resource with the best marginal value against the
  * gaps that are still open, then updates the running skill state.
@@ -175,6 +190,7 @@ function selectItems(
       const score =
         value * levelFit(resource, projected) +
         interestBonus(resource, profile.interests) -
+        avoidPenalty(resource, profile.avoid ?? []) -
         resource.hours / 100 // mild preference for the shorter route
 
       if (!best || score > best.score) best = { resource, score }
@@ -277,6 +293,18 @@ function explain(
     reasons.push({
       kind: 'interest',
       text: `Matches your stated interest in ${matchedInterests.join(' and ')}.`,
+    })
+  }
+
+  // Something the learner asked to avoid earned its place anyway. Say so
+  // plainly, with what depends on it — an unexplained appearance reads as the
+  // planner ignoring them.
+  const matchedAvoid = (resource.tags ?? []).filter((t) => (profile.avoid ?? []).includes(t))
+  if (matchedAvoid.length > 0) {
+    const needed = unlocks.length > 0 ? ` It is required before ${unlocks[0].title}.` : ''
+    reasons.push({
+      kind: 'interest',
+      text: `Kept despite you flagging ${matchedAvoid.join(' and ')} — nothing else in the catalogue closes this gap.${needed}`,
     })
   }
 
@@ -409,6 +437,35 @@ export function buildPath(profile: LearnerProfile): LearningPath | null {
 export function pathResourceIds(path: LearningPath | null): string[] {
   if (!path) return []
   return path.milestones.flatMap((m) => m.items.map((i) => i.resourceId))
+}
+
+/**
+ * Which skills a finished resource can actually be checked on.
+ *
+ * Three filters, in order: the resource has to claim to teach it, the item
+ * bank has to have questions for it, and — when there is a goal — the goal
+ * has to care about it. Capped at two, because a check that outlasts the
+ * thing it is checking stops being a check and starts being an exam.
+ */
+export function checkableSkills(
+  resourceId: ResourceId,
+  bankSkills: SkillId[],
+  goal: Goal | null,
+  limit = 2,
+): SkillId[] {
+  const resource = getResource(resourceId)
+  if (!resource) return []
+
+  const bank = new Set(bankSkills)
+  return Object.keys(resource.teaches)
+    .filter((skillId) => bank.has(skillId))
+    .sort((a, b) => {
+      // Goal-relevant first, then whichever the resource pushes furthest.
+      const relevance = Number(Boolean(goal?.target[b])) - Number(Boolean(goal?.target[a]))
+      if (relevance !== 0) return relevance
+      return (resource.teaches[b] ?? 0) - (resource.teaches[a] ?? 0)
+    })
+    .slice(0, limit)
 }
 
 /** Find the explanation for one item without re-running generation. */

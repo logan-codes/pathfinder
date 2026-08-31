@@ -42,7 +42,7 @@ import {
   type SkillDomain,
 } from '@/lib/types'
 import { useSkillLevels } from '@/store/selectors'
-import { useAppStore, type ThemeChoice } from '@/store/useAppStore'
+import { DEMO_PROFILE, useAppStore, type ThemeChoice } from '@/store/useAppStore'
 import { useAuthStore } from '@/store/useAuthStore'
 
 type SectionId = 'account' | 'profile' | 'skills' | 'history' | 'appearance'
@@ -415,8 +415,20 @@ function ProfileSection() {
   const profile = useAppStore((s) => s.profile)
   const updateProfile = useAppStore((s) => s.updateProfile)
   const toggleInterest = useAppStore((s) => s.toggleInterest)
+  const setPreferences = useAppStore((s) => s.setPreferences)
+  const adoptProfile = useAppStore((s) => s.adoptProfile)
   const setPace = useAppStore((s) => s.setPace)
   const setGoal = useAppStore((s) => s.setGoal)
+
+  function toggleAvoid(tag: string) {
+    const avoid = profile.avoid.includes(tag)
+      ? profile.avoid.filter((t) => t !== tag)
+      : [...profile.avoid, tag]
+    setPreferences(
+      { avoid, interests: profile.interests.filter((t) => !avoid.includes(t)) },
+      `From changing what you would rather avoid.`,
+    )
+  }
 
   return (
     <div className="stack stack--4">
@@ -495,6 +507,28 @@ function ProfileSection() {
         </div>
       </Panel>
 
+      <Panel title="Starting over">
+        <div className="setrows">
+          <Row
+            label="Answer the questionnaire again"
+            hint="Replaces your interests, pace, goal and self-rated levels with a fresh set of answers. Completed resources and measured levels are kept."
+          >
+            <Link className="btn" to="/onboarding">
+              Redo onboarding
+            </Link>
+          </Row>
+
+          <Row
+            label="Load the demo learner"
+            hint="Overwrites this profile with the seeded one — some Python and SQL behind them, interested in machine learning. Useful for showing the app, not for using it."
+          >
+            <button className="btn" onClick={() => adoptProfile(DEMO_PROFILE)}>
+              Load demo profile
+            </button>
+          </Row>
+        </div>
+      </Panel>
+
       <Panel
         title="Interests"
         actions={
@@ -517,6 +551,37 @@ function ProfileSection() {
                 className={`chip ${on ? 'chip--on' : ''}`}
                 aria-pressed={on}
                 onClick={() => toggleInterest(tag)}
+              >
+                {tag}
+              </button>
+            )
+          })}
+        </div>
+      </Panel>
+
+      <Panel
+        title="Not for me"
+        actions={
+          <span className="faint mono" style={{ fontSize: 'var(--t-xs)' }}>
+            {profile.avoid.length} selected
+          </span>
+        }
+      >
+        <p className="muted" style={{ fontSize: 'var(--t-sm)', marginBottom: 'var(--s-4)' }}>
+          The opposite of an interest, and deliberately weaker than one. Something flagged here
+          loses ties — but if it is the only route to your goal it stays in the path, and the
+          "why this?" panel says so rather than slipping it past you.
+        </p>
+        <div className="row row--wrap">
+          {ALL_TAGS.map((tag) => {
+            const on = profile.avoid.includes(tag)
+            return (
+              <button
+                key={tag}
+                type="button"
+                className={`chip ${on ? 'chip--on' : ''}`}
+                aria-pressed={on}
+                onClick={() => toggleAvoid(tag)}
               >
                 {tag}
               </button>

@@ -87,7 +87,14 @@ interface AuthState {
 /** The whole learner, as the app store currently holds it. */
 function currentState(): LearnerState {
   const app = useAppStore.getState()
-  return { profile: app.profile, progress: app.status, conversation: app.messages }
+  return {
+    profile: app.profile,
+    progress: app.status,
+    conversation: app.messages,
+    mastery: app.mastery,
+    marks: app.marks,
+    unverified: app.unverified,
+  }
 }
 
 /**
@@ -141,8 +148,13 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         canDeleteAccount: me.canDeleteAccount,
       })
       // A session that survived a reload brings the whole learner with it —
-      // profile, progress and conversation.
-      if (me.user) useAppStore.getState().adoptState(me)
+      // profile, progress and conversation. Claim it first: a cookie for one
+      // account and localStorage from another is exactly the case where the
+      // wrong person's plan would otherwise be adopted as a starting point.
+      if (me.user) {
+        useAppStore.getState().claimFor(me.user.id)
+        useAppStore.getState().adoptState(me)
+      }
     } catch {
       // The server being down is not a signed-in/out question. Treat it as
       // signed out so the UI settles, and say nothing — the connection badge
@@ -157,10 +169,18 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       const session = await postLogin({ email, password }, AbortSignal.timeout(AUTH_TIMEOUT_MS))
       set({ status: 'signed-in', user: session.user, busy: false })
 
+      // Whose state is in this browser? If it belonged to another account it
+      // is cleared here — a shared laptop must not hand one person's plan,
+      // history and onboarding stamp to the next person who signs in.
+      if (session.user) useAppStore.getState().claimFor(session.user.id)
+
       if (session.profile) {
         useAppStore.getState().adoptState(session)
       } else {
-        // First sign-in on this account: keep what they were working on.
+        // Nothing stored against this account, so what is on screen becomes
+        // its starting point: the person's own anonymous work if they
+        // explored before signing in, and a blank learner if `claimFor` just
+        // cleared somebody else's.
         get().queueStateSave(currentState())
       }
       return true
@@ -191,9 +211,13 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       }
 
       set({ status: 'signed-in', user: session.user, busy: false })
-      // A new account has nothing stored, so it adopts the current state —
-      // which may already have a goal, some progress and a conversation if
-      // they explored before signing up.
+
+      // A new account adopts the state on screen, because someone who
+      // explored before signing up should not lose that. It adopts nothing
+      // when that state belongs to a different account — claimFor() clears
+      // it — which is what makes a second account on one browser start
+      // genuinely new, questionnaire and all.
+      useAppStore.getState().claimFor(session.user.id)
       get().queueStateSave(currentState())
       return true
     } catch (error) {
@@ -212,12 +236,15 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       // the person can see, so clear it and move on.
     }
     set({ status: 'signed-out', user: null, savedAt: null, error: null })
+    // The learner belongs to the account, and the account has its own copy.
+    useAppStore.getState().resetLearner()
   },
 
   signOutEverywhere: async () => {
     try {
       await postLogoutAll(AbortSignal.timeout(AUTH_TIMEOUT_MS))
       set({ status: 'signed-out', user: null, savedAt: null })
+      useAppStore.getState().resetLearner()
     } catch (error) {
       set({ error: describe(error) })
     }
@@ -246,6 +273,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       )
       // The server ends every session, including this one, on purpose.
       set({ status: 'signed-out', user: null, busy: false, savedAt: null })
+      useAppStore.getState().resetLearner()
       return true
     } catch (error) {
       set({ busy: false, error: describe(error) })
@@ -258,6 +286,8 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     try {
       await apiDeleteAccount(AbortSignal.timeout(AUTH_TIMEOUT_MS))
       set({ status: 'signed-out', user: null, busy: false, savedAt: null })
+      // The account is gone; leaving its plan on screen would be a ghost.
+      useAppStore.getState().resetLearner()
       return true
     } catch (error) {
       set({ busy: false, error: describe(error) })

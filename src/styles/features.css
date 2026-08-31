@@ -554,3 +554,205 @@ kbd {
   .settings__tab--on { border-radius: var(--radius); border-left: 0; border-bottom-color: var(--accent); }
   .setrow { flex-direction: column; align-items: flex-start; gap: var(--s-3); }
 }
+
+/* ---------------------------------------------------------------------------
+   onboarding
+   One question per screen, centred, with nothing else on the page to click.
+   --------------------------------------------------------------------------- */
+
+.onb {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-4);
+  padding: var(--s-6) var(--s-4);
+  background: var(--bg-sunken);
+}
+.onb__card {
+  width: 100%;
+  max-width: 640px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+}
+.onb__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-4) var(--s-5);
+  border-bottom: 1px solid var(--line);
+}
+.onb__count { font-size: var(--t-sm); color: var(--fg-muted); }
+.onb__bar { flex: 1; height: 3px; background: var(--track); border-radius: 2px; overflow: hidden; }
+.onb__bar > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width var(--dur);
+}
+
+.onb__body { padding: var(--s-5); display: flex; flex-direction: column; gap: var(--s-4); }
+.onb__prompt { font-size: var(--t-xl); font-weight: 500; line-height: 1.35; }
+.onb__help {
+  font-size: var(--t-sm);
+  color: var(--fg-muted);
+  line-height: 1.55;
+  margin-top: calc(-1 * var(--s-2));
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+}
+.onb__input { height: 40px; font-size: var(--t-md); }
+
+.onb__options { display: flex; flex-direction: column; gap: var(--s-2); }
+.onb__options--tight { margin-top: var(--s-2); }
+.onb__option {
+  text-align: left;
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  transition: background var(--dur), border-color var(--dur);
+}
+.onb__option:hover { background: var(--bg-hover); }
+.onb__option--on { border-color: var(--accent-line); background: var(--accent-wash); }
+.onb__option-label { font-size: var(--t-md); font-weight: 500; }
+.onb__option-help { font-size: var(--t-sm); color: var(--fg-muted); }
+
+.onb__tags { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+.onb__tag {
+  padding: 6px var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg);
+  font-size: var(--t-sm);
+  cursor: pointer;
+  transition: background var(--dur), border-color var(--dur), color var(--dur);
+}
+.onb__tag:hover { background: var(--bg-hover); }
+.onb__tag--on {
+  border-color: var(--accent-line);
+  background: var(--accent-wash);
+  color: var(--accent);
+}
+
+.onb__levels { display: flex; flex-direction: column; gap: var(--s-4); }
+.onb__level-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--s-3);
+  font-size: var(--t-md);
+  margin-bottom: var(--s-2);
+}
+.onb__level input[type='range'] { flex: 1; accent-color: var(--accent); }
+
+.onb__resolved { display: flex; flex-direction: column; gap: var(--s-1); font-size: var(--t-sm); }
+.onb__intro { font-size: var(--t-md); line-height: 1.65; }
+.onb__summary { margin-top: var(--s-2); }
+
+.onb__foot {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: var(--s-4) var(--s-5);
+  border-top: 1px solid var(--line);
+}
+.onb__foot-note { max-width: 640px; text-align: center; font-size: var(--t-sm); line-height: 1.5; }
+
+/* ---------------------------------------------------------------------------
+   the check that gates a tick
+   --------------------------------------------------------------------------- */
+
+.tcheck {
+  border: 1px solid var(--accent-line);
+  border-radius: var(--radius);
+  background: var(--bg);
+  overflow: hidden;
+}
+.tcheck__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  background: var(--accent-wash);
+  border-bottom: 1px solid var(--accent-line);
+}
+.tcheck__title { font-size: var(--t-md); font-weight: 500; margin-top: 2px; }
+.tcheck__body { padding: var(--s-4); }
+
+/* ---------------------------------------------------------------------------
+   what changed in the path
+   Added items are stated loudly; removed ones are drawn as a hole where the
+   item used to be, so a plan can never quietly rearrange itself.
+   --------------------------------------------------------------------------- */
+
+.changes {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--accent-line);
+  background: var(--accent-wash);
+  border-radius: var(--radius);
+  font-size: var(--t-sm);
+  line-height: 1.5;
+}
+.changes__dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.res--added {
+  box-shadow: inset 3px 0 0 var(--accent);
+  background: var(--accent-wash);
+}
+.res--added .res__title { font-weight: 700; }
+
+.res--removed {
+  cursor: pointer;
+  opacity: 0.55;
+  margin: var(--s-2) var(--s-3);
+  padding: var(--s-3);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  transition: opacity var(--dur);
+}
+.res--removed:hover { opacity: 0.8; }
+.res__title--struck { text-decoration: line-through; color: var(--fg-muted); }
+.res__ghost-mark {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  color: var(--fg-faint);
+  flex: none;
+}
+.res__flag { color: var(--warn); }
+
+/* ---------------------------------------------------------------------------
+   discover
+   --------------------------------------------------------------------------- */
+
+.disc--on { background: var(--bg-sunken); }
+.disc__search { display: flex; align-items: center; gap: var(--s-3); }
+.disc__search .input { flex: 1; height: 36px; }
+.disc__body {
+  padding: 0 var(--s-4) var(--s-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}

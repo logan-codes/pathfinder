@@ -355,6 +355,50 @@ async function main(): Promise<void> {
     return json.error.code
   })
 
+  await check('POST /onboarding/followup only offers known ids', async () => {
+    const { tags, skills } = await ok('GET', '/catalog')
+    const known = new Set([
+      ...tags,
+      ...skills.map((skill: { id: string }) => skill.id),
+    ])
+    const result = await ok('POST', '/onboarding/followup', {
+      profile: PROFILE,
+      answers: [
+        { stepId: 'goal', values: ['I want to become a machine learning engineer'] },
+        { stepId: 'interests', values: ['machine learning'] },
+      ],
+    })
+    assert(Array.isArray(result.questions), 'questions was not an array')
+    assert(result.questions.length <= 2, 'more than two follow-ups')
+    for (const question of result.questions) {
+      assert(question.prompt.length > 0, 'a follow-up came back with no prompt')
+      for (const option of question.options) {
+        const value = option.tag ?? option.skillId
+        assert(known.has(value), `follow-up offered an unknown id: ${value}`)
+      }
+    }
+    return `${result.questions.length} question(s) via ${result.source}`
+  })
+
+  await check('POST /onboarding/summary always answers', async () => {
+    const result = await ok('POST', '/onboarding/summary', {
+      profile: PROFILE,
+      answers: [{ stepId: 'name', values: ['Smoke'] }],
+    })
+    assert(result.text.length > 0, 'empty summary')
+    assert(['llm', 'template'].includes(result.source), `unexpected source ${result.source}`)
+    return `${result.source}: ${result.text.slice(0, 70)}...`
+  })
+
+  await check('a profile with an avoided tag still plans', async () => {
+    const { path: plan } = await ok('POST', '/path', {
+      profile: { ...PROFILE, avoid: ['machine learning', 'maths'] },
+    })
+    assert(plan !== null, 'avoiding tags emptied the path')
+    assert(plan.milestones.length > 0, 'avoiding tags produced a path with no milestones')
+    return `${plan.milestones.length} milestones survived the preference`
+  })
+
   await check('malformed body is a 400, not a 500', async () => {
     const { status, json } = await api('POST', '/path', { profile: { pace: 'sprint' } })
     assert(status === 400, `expected 400, got ${status}`)

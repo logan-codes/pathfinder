@@ -23,13 +23,16 @@ import { ApiError, getHealth, postChat, postPath } from '@/lib/api'
 import { respond, type AssistantReply } from '@/lib/assistant'
 import { buildPath, pathResourceIds } from '@/lib/engine'
 import { uid } from '@/lib/format'
+import { getResource } from '@/lib/catalog'
 import type {
   ChatMessage,
   ItemStatus,
   LearnerProfile,
   LearningPath,
   Level,
+  MasteryRecord,
   Pace,
+  PathMark,
   ResourceId,
   SkillId,
 } from '@/lib/types'
@@ -59,17 +62,39 @@ export function applyTheme(choice: ThemeChoice) {
   }
 }
 
-/** A learner with some history, so the demo is not a cold start. */
-const DEFAULT_PROFILE: LearnerProfile = {
-  name: 'Kiran',
+/**
+ * A learner who has answered nothing yet.
+ *
+ * This is what a new account starts from, and it is deliberately empty: the
+ * questionnaire is the only thing that should be putting interests and
+ * completed courses on a profile. Seeding them here would mean the first
+ * plan a real learner sees was built from somebody else's answers.
+ */
+export const BLANK_PROFILE: LearnerProfile = {
+  name: 'Learner',
   experience: 'some',
-  interests: ['machine learning', 'ai', 'analytics'],
-  completed: ['py-basics', 'sql-essentials'],
+  interests: [],
+  avoid: [],
+  completed: [],
   selfRated: {},
   goalId: null,
   goalStatement: '',
   pace: 'steady',
+  onboardedAt: null,
+  intro: '',
 }
+
+/** A learner with some history, so the demo is not a cold start. */
+export const DEMO_PROFILE: LearnerProfile = {
+  ...BLANK_PROFILE,
+  name: 'Kiran',
+  interests: ['machine learning', 'ai', 'analytics'],
+  completed: ['py-basics', 'sql-essentials'],
+  onboardedAt: Date.now(),
+}
+
+/** Fields added after a profile was first persisted must not arrive undefined. */
+const DEFAULT_PROFILE = BLANK_PROFILE
 
 const GREETING: ChatMessage = {
   id: 'greeting',
@@ -132,6 +157,79 @@ let chatToken = 0
 /** Coalesces the network half of a burst of edits into one request. */
 let pathTimer: ReturnType<typeof setTimeout> | null = null
 
+/** Highlights nobody has clicked stop being highlights past about this many. */
+const MAX_MARKS = 60
+
+/**
+ * What changed between two versions of the path.
+ *
+ * A removed item is about to disappear from the data entirely, so its mark
+ * carries what the path view needs to draw it anyway: its title, and the
+ * surviving item it used to follow. A mark that reverses an unacknowledged
+ * one (an item removed, then added back before anybody looked) cancels it
+ * rather than stacking, because nothing actually changed for the learner.
+ */
+function diffMarks(
+  previous: LearningPath | null,
+  next: LearningPath | null,
+  current: Record<ResourceId, PathMark>,
+  note?: string,
+): Record<ResourceId, PathMark> {
+  // Nothing to compare against on the first build — every item would be
+  // "new", which is true and useless.
+  if (!previous) return current
+
+  const before = pathResourceIds(previous)
+  const after = pathResourceIds(next)
+  const afterSet = new Set(after)
+  const beforeSet = new Set(before)
+
+  const marks = { ...current }
+  const at = Date.now()
+
+  for (const id of after) {
+    if (beforeSet.has(id)) continue
+    if (marks[id]?.kind === 'removed') delete marks[id]
+    else {
+      marks[id] = {
+        kind: 'added',
+        at,
+        afterResourceId: null,
+        title: getResource(id)?.title ?? id,
+        note,
+      }
+    }
+  }
+
+  for (const [index, id] of before.entries()) {
+    if (afterSet.has(id)) continue
+    if (marks[id]?.kind === 'added') {
+      delete marks[id]
+      continue
+    }
+    // Anchor to the nearest earlier item that is still in the path, so the
+    // ghost lands where the item used to be rather than at the end.
+    let anchor: ResourceId | null = null
+    for (let i = index - 1; i >= 0; i--) {
+      if (afterSet.has(before[i])) {
+        anchor = before[i]
+        break
+      }
+    }
+    marks[id] = {
+      kind: 'removed',
+      at,
+      afterResourceId: anchor,
+      title: getResource(id)?.title ?? id,
+      note,
+    }
+  }
+
+  const entries = Object.entries(marks)
+  if (entries.length <= MAX_MARKS) return marks
+  return Object.fromEntries(entries.sort(([, a], [, b]) => a.at - b.at).slice(-MAX_MARKS))
+}
+
 /**
  * Typing a name or dragging a level slider fires an edit per keystroke or
  * step. The local rebuild is cheap enough to run on every one of them; a
@@ -158,6 +256,22 @@ interface AppState {
   path: LearningPath | null
   /** Progress per resource id. Absent means 'todo'. */
   status: Record<ResourceId, ItemStatus>
+  /**
+   * Items the learner ticked without a check behind them — the server was
+   * unreachable, so nothing could be graded. Kept apart from `status` so the
+   * path can be honest about which ticks were verified.
+   */
+  unverified: Record<ResourceId, true>
+  /** What the last graded round established, per skill. The next prior. */
+  mastery: Record<SkillId, MasteryRecord>
+  /** Path changes the learner has not clicked through yet. */
+  marks: Record<ResourceId, PathMark>
+  /**
+   * Whose learner this is: the account id it belongs to, or null while it is
+   * an anonymous visitor's. Without it, one browser hands the last account's
+   * profile, history and onboarding stamp to the next person who signs in.
+   */
+  owner: string | null
   messages: ChatMessage[]
   /** Assistant is composing — drives the typing indicator. */
   thinking: boolean
@@ -190,15 +304,53 @@ interface AppState {
     profile: LearnerProfile | null
     progress?: Record<ResourceId, ItemStatus>
     conversation?: ChatMessage[]
+    mastery?: Record<SkillId, MasteryRecord>
+    marks?: Record<ResourceId, PathMark>
   }) => void
+  /**
+   * Hand the local learner to an account, clearing it first when it belonged
+   * to somebody else. Returns whether anything was cleared, so the caller can
+   * tell "this account has nothing stored, adopt what is on screen" from
+   * "this is a different person at the same browser".
+   */
+  claimFor: (userId: string) => boolean
+  /** Forget the learner entirely — sign-out, or a different account. */
+  resetLearner: () => void
   toggleInterest: (tag: string) => void
+  /**
+   * Replace both preference lists at once and re-plan, marking what moved.
+   * One action rather than a series of `toggleInterest` calls, because each
+   * of those re-plans, and only the first would find anything to diff.
+   */
+  setPreferences: (
+    patch: { interests?: string[]; avoid?: string[] },
+    note: string,
+  ) => void
   toggleCompleted: (id: ResourceId) => void
   setSelfRated: (skillId: SkillId, level: Level) => void
   setPace: (pace: Pace) => void
   setGoal: (goalId: string, statement?: string) => void
-  regenerate: () => void
+  /**
+   * Rebuild from the current profile. `markChanges` records what moved, for
+   * the path to highlight — reserved for changes the learner did not make by
+   * hand, since a plan that flashes on every keystroke teaches them to ignore
+   * the highlight.
+   */
+  regenerate: (options?: { markChanges?: boolean; note?: string }) => void
+  /** Finish onboarding: adopt the answered profile and stamp the date. */
+  completeOnboarding: (profile: LearnerProfile) => void
+  /** Remember a graded result, so the next round of questions compounds. */
+  recordMastery: (skillId: SkillId, mastery: MasteryRecord) => void
+  /**
+   * A measurement came back below what the plan assumed. Write the level and
+   * re-plan in one step, marking what moved — the learner did not ask for
+   * this change, so they have to be able to see it.
+   */
+  applyMeasuredLevel: (skillId: SkillId, level: Level, note: string) => void
+  /** The learner has seen this change. Clears the highlight for good. */
+  acknowledgeMark: (id: ResourceId) => void
   setStatus: (id: ResourceId, status: ItemStatus) => void
-  toggleDone: (id: ResourceId) => void
+  toggleDone: (id: ResourceId, options?: { verified?: boolean }) => void
   focusResource: (id: ResourceId | null) => void
   pushMessage: (msg: Omit<ChatMessage, 'id' | 'at'>) => void
   setThinking: (v: boolean) => void
@@ -216,16 +368,28 @@ export const useAppStore = create<AppState>()(
        * Commit a path and prune progress for anything no longer planned, so
        * the dashboard cannot count work that is not in the plan.
        */
-      function commitPath(path: LearningPath | null, source: Connection['pathSource']) {
-        const ids = new Set(pathResourceIds(path))
+      function commitPath(
+        path: LearningPath | null,
+        source: Connection['pathSource'],
+        marking?: { note?: string },
+      ) {
+        const nextIds = pathResourceIds(path)
+        const ids = new Set(nextIds)
         set((s) => {
           const kept: Record<ResourceId, ItemStatus> = {}
           for (const [id, st] of Object.entries(s.status)) {
             if (ids.has(id)) kept[id] = st
           }
+
+          // The diff has to be taken here, before the pruning above throws
+          // away everything the new path no longer contains — that is the
+          // only moment both versions exist side by side.
+          const marks = marking ? diffMarks(s.path, path, s.marks, marking.note) : s.marks
+
           return {
             path,
             status: kept,
+            marks,
             connection: { ...s.connection, pathSource: source },
           }
         })
@@ -248,6 +412,9 @@ export const useAppStore = create<AppState>()(
         try {
           const { path } = await postPath(profile, AbortSignal.timeout(PATH_TIMEOUT_MS))
           if (token !== pathToken) return // a newer edit superseded this one
+          // No marking here: the local answer already diffed against the old
+          // path, and this one differs from it only by which side of the wire
+          // ran the same engine. Diffing again could only produce noise.
           commitPath(path, 'api')
           markOnline()
         } catch (error) {
@@ -270,9 +437,13 @@ export const useAppStore = create<AppState>()(
 
       return {
         theme: readStoredTheme(),
-        profile: DEFAULT_PROFILE,
+        profile: BLANK_PROFILE,
         path: null,
         status: {},
+        unverified: {},
+        mastery: {},
+        marks: {},
+        owner: null,
         messages: [GREETING],
         thinking: false,
         focusedResource: null,
@@ -296,15 +467,45 @@ export const useAppStore = create<AppState>()(
           get().regenerate()
         },
 
-        adoptState: ({ profile, progress, conversation }) => {
+        adoptState: ({ profile, progress, conversation, mastery, marks }) => {
           set((s) => ({
             profile: profile ? { ...DEFAULT_PROFILE, ...profile } : s.profile,
             status: progress ?? s.status,
+            mastery: mastery ?? s.mastery,
+            marks: marks ?? s.marks,
             // An account that has never held a conversation should not wipe
             // the greeting the app opens with.
             messages:
               conversation && conversation.length > 0 ? conversation : s.messages,
           }))
+          get().regenerate()
+        },
+
+        claimFor: (userId) => {
+          const current = get().owner
+          const foreign = current !== null && current !== userId
+          if (foreign) get().resetLearner()
+          set({ owner: userId })
+          return foreign
+        },
+
+        /**
+         * Back to a blank learner. Everything here is a fact about one person
+         * — what they want, what they have finished, what has been measured —
+         * so none of it may outlive their session on a shared browser. The
+         * account's own copy is on the server; this only drops the local one.
+         */
+        resetLearner: () => {
+          set({
+            profile: BLANK_PROFILE,
+            status: {},
+            unverified: {},
+            mastery: {},
+            marks: {},
+            messages: [{ ...GREETING, at: Date.now() }],
+            focusedResource: null,
+            owner: null,
+          })
           get().regenerate()
         },
 
@@ -321,6 +522,17 @@ export const useAppStore = create<AppState>()(
             }
           })
           get().regenerate()
+        },
+
+        setPreferences: (patch, note) => {
+          set((s) => ({
+            profile: {
+              ...s.profile,
+              interests: patch.interests ?? s.profile.interests,
+              avoid: patch.avoid ?? s.profile.avoid,
+            },
+          }))
+          get().regenerate({ markChanges: true, note })
         },
 
         /**
@@ -381,11 +593,15 @@ export const useAppStore = create<AppState>()(
          * today, but it is the server's catalogue that wins once there is a
          * real one.
          */
-        regenerate: () => {
+        regenerate: (options) => {
           const profile = get().profile
           const token = ++pathToken
 
-          commitPath(buildPath(profile), 'local')
+          commitPath(
+            buildPath(profile),
+            'local',
+            options?.markChanges ? { note: options.note } : undefined,
+          )
 
           if (pathTimer !== null) clearTimeout(pathTimer)
           pathTimer = setTimeout(() => {
@@ -405,7 +621,7 @@ export const useAppStore = create<AppState>()(
          * has committed to, and having items vanish underneath them as they
          * finish would be hostile. Re-planning is an explicit action.
          */
-        toggleDone: (id) =>
+        toggleDone: (id, options) =>
           set((s) => {
             const nowDone = s.status[id] !== 'done'
             const completed = nowDone
@@ -414,10 +630,43 @@ export const useAppStore = create<AppState>()(
                 : [...s.profile.completed, id]
               : s.profile.completed.filter((c) => c !== id)
 
+            // A tick that no check stood behind is still a tick — the app has
+            // to work with the server stopped — but the path says so, rather
+            // than quietly treating a claim as a measurement.
+            const unverified = { ...s.unverified }
+            if (nowDone && options?.verified === false) unverified[id] = true
+            else delete unverified[id]
+
             return {
               status: { ...s.status, [id]: nowDone ? 'done' : 'todo' },
               profile: { ...s.profile, completed },
+              unverified,
             }
+          }),
+
+        completeOnboarding: (profile) => {
+          get().adoptProfile({ ...profile, onboardedAt: Date.now() })
+        },
+
+        recordMastery: (skillId, mastery) =>
+          set((s) => ({ mastery: { ...s.mastery, [skillId]: mastery } })),
+
+        // Deliberately not `setSelfRated` followed by `regenerate`: that
+        // re-plans twice, and the second diff would be taken against a path
+        // the first one had already changed, so it would find nothing.
+        applyMeasuredLevel: (skillId, level, note) => {
+          set((s) => ({
+            profile: { ...s.profile, selfRated: { ...s.profile.selfRated, [skillId]: level } },
+          }))
+          get().regenerate({ markChanges: true, note })
+        },
+
+        acknowledgeMark: (id) =>
+          set((s) => {
+            if (!(id in s.marks)) return s
+            const marks = { ...s.marks }
+            delete marks[id]
+            return { marks }
           }),
 
         focusResource: (id) => set({ focusedResource: id }),
@@ -521,8 +770,31 @@ export const useAppStore = create<AppState>()(
       partialize: (s) => ({
         profile: s.profile,
         status: s.status,
+        unverified: s.unverified,
+        mastery: s.mastery,
+        marks: s.marks,
+        owner: s.owner,
         messages: s.messages,
       }),
+      /**
+       * A profile written before a field existed comes back without it, and
+       * `profile.avoid.includes(...)` on an undefined is a blank screen. The
+       * default merge is a shallow spread, which replaces the profile object
+       * wholesale — so the defaults have to be reapplied here, one level down.
+       */
+      merge: (persisted, current) => {
+        const saved = (persisted ?? {}) as Partial<AppState>
+        return {
+          ...current,
+          ...saved,
+          profile: { ...BLANK_PROFILE, ...(saved.profile ?? {}) },
+          status: saved.status ?? {},
+          unverified: saved.unverified ?? {},
+          mastery: saved.mastery ?? {},
+          marks: saved.marks ?? {},
+          owner: saved.owner ?? null,
+        }
+      },
       onRehydrateStorage: () => (state) => {
         state?.regenerate()
       },

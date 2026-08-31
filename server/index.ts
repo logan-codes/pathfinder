@@ -52,6 +52,7 @@ import { chatRouter } from './routes/chat'
 import { goalRouter } from './routes/goal'
 import { healthRouter } from './routes/health'
 import { narrateRouter } from './routes/narrate'
+import { onboardingRouter } from './routes/onboarding'
 import { pathRouter } from './routes/path'
 import { providersRouter } from './routes/providers'
 import { quizRouter } from './routes/quiz'
@@ -139,11 +140,14 @@ export function createApp() {
   api.post('/chat', llmLimiter)
   api.post('/goal/extract', llmLimiter)
   api.post('/narrate', llmLimiter)
+  api.post('/onboarding/followup', llmLimiter)
+  api.post('/onboarding/summary', llmLimiter)
   api.post('/providers/check', llmLimiter)
 
   api.use(chatRouter)
   api.use(goalRouter)
   api.use(narrateRouter)
+  api.use(onboardingRouter)
   api.use(providersRouter)
 
   app.use('/api', api)

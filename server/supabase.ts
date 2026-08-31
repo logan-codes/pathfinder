@@ -29,7 +29,7 @@ import {
   type SupabaseClient,
   type User as SupabaseUser,
 } from '@supabase/supabase-js'
-import type { LearnerProfile } from '../src/lib/types'
+import type { LearnerProfile, MasteryRecord, PathMark } from '../src/lib/types'
 import { SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL } from './config'
 
 export const PROFILES_TABLE = 'profiles'
@@ -213,9 +213,29 @@ export interface LearnerState {
   progress: Record<string, string>
   /** Assistant transcript, newest last. */
   conversation: unknown[]
+  /** Per-skill posterior from graded checks, keyed by skill id. */
+  mastery: Record<string, MasteryRecord>
+  /** Path changes the learner has not acknowledged, keyed by resource id. */
+  marks: Record<string, PathMark>
+  /** Items ticked with no check behind them, keyed by resource id. */
+  unverified: Record<string, boolean>
 }
 
-export const EMPTY_STATE: LearnerState = { profile: null, progress: {}, conversation: [] }
+export const EMPTY_STATE: LearnerState = {
+  profile: null,
+  progress: {},
+  conversation: [],
+  mastery: {},
+  marks: {},
+  unverified: {},
+}
+
+/**
+ * Marks are unbounded in principle — a learner who never clicks one keeps
+ * accumulating them — so the newest slice is what gets stored. An old
+ * highlight nobody has acknowledged in fifty path changes is not a highlight.
+ */
+const MAX_MARKS = 60
 
 /**
  * A transcript is the one thing here that grows without bound, so it is
@@ -223,6 +243,19 @@ export const EMPTY_STATE: LearnerState = { profile: null, progress: {}, conversa
  * row that keeps getting bigger for the rest of the account's life.
  */
 const MAX_CONVERSATION = 200
+
+/**
+ * A missing column is an operator problem, not a bug, and the fix is one
+ * file. Postgres says "column profiles.mastery does not exist" and PostgREST
+ * says its schema cache has no such column; both mean the same thing, and
+ * neither tells you what to do about it.
+ */
+function describeSchemaError(message: string): string {
+  const missingColumn =
+    /column .*does not exist/i.test(message) || /schema cache|PGRST20[0-9]/i.test(message)
+  if (!missingColumn) return message
+  return `${message} — the profiles table is missing a column this server reads. Run supabase/migrations/0003_onboarding.sql, which adds every column the app needs and is safe to re-run.`
+}
 
 /**
  * Read the caller's whole saved state.
@@ -234,11 +267,11 @@ const MAX_CONVERSATION = 200
 export async function readState(caller: Caller): Promise<LearnerState> {
   const { data, error } = await asUser(caller.accessToken)
     .from(PROFILES_TABLE)
-    .select('profile, progress, conversation')
+    .select('profile, progress, conversation, mastery, marks, unverified')
     .eq('id', caller.id)
     .maybeSingle()
 
-  if (error) throw new Error(`could not read profile: ${error.message}`)
+  if (error) throw new Error(`could not read profile: ${describeSchemaError(error.message)}`)
   if (!data) return EMPTY_STATE
 
   // A row created by the signup trigger has `{}` for its profile, which is
@@ -251,6 +284,9 @@ export async function readState(caller: Caller): Promise<LearnerState> {
     profile: hasProfile ? profile : null,
     progress: (data.progress as Record<string, string>) ?? {},
     conversation: Array.isArray(data.conversation) ? data.conversation : [],
+    mastery: (data.mastery as Record<string, MasteryRecord>) ?? {},
+    marks: (data.marks as Record<string, PathMark>) ?? {},
+    unverified: (data.unverified as Record<string, boolean>) ?? {},
   }
 }
 
@@ -265,6 +301,11 @@ export async function readState(caller: Caller): Promise<LearnerState> {
  */
 export async function writeState(caller: Caller, state: LearnerState): Promise<void> {
   const conversation = state.conversation.slice(-MAX_CONVERSATION)
+  const marks = Object.fromEntries(
+    Object.entries(state.marks ?? {})
+      .sort(([, a], [, b]) => (a?.at ?? 0) - (b?.at ?? 0))
+      .slice(-MAX_MARKS),
+  )
 
   const { error } = await asUser(caller.accessToken)
     .from(PROFILES_TABLE)
@@ -275,12 +316,16 @@ export async function writeState(caller: Caller, state: LearnerState): Promise<v
         profile: state.profile ?? {},
         progress: state.progress,
         conversation,
+        mastery: state.mastery ?? {},
+        marks,
+        unverified: state.unverified ?? {},
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'id' },
     )
 
-  if (error) throw new Error(`could not save profile: ${error.message}`)
+  if (!error) return
+  throw new Error(`could not save profile: ${describeSchemaError(error.message)}`)
 }
 
 /**

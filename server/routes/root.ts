@@ -41,6 +41,8 @@ const ENDPOINTS: Endpoint[] = [
   { method: 'POST', path: '/api/goal/extract', summary: 'Free text to a known goal id', model: true },
   { method: 'POST', path: '/api/chat', summary: 'Assistant turn, plus the recomputed path', model: true },
   { method: 'POST', path: '/api/narrate', summary: 'Prose for an already-computed explanation', model: true },
+  { method: 'POST', path: '/api/onboarding/followup', summary: 'Extra questions when the fixed questionnaire was not enough', model: true },
+  { method: 'POST', path: '/api/onboarding/summary', summary: 'What the questionnaire answers add up to, in prose', model: true },
 ]
 
 const EXAMPLES = [

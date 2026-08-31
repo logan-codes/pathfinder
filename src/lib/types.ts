@@ -80,6 +80,8 @@ export interface LearnerProfile {
   /** Self-declared starting point, used before any history exists. */
   experience: 'beginner' | 'some' | 'experienced'
   interests: string[]
+  /** Tags the learner said are not for them. A preference, never a veto. */
+  avoid: string[]
   /** Resource ids the learner has already finished. */
   completed: ResourceId[]
   /** Manual overrides on top of history-derived levels. */
@@ -88,6 +90,10 @@ export interface LearnerProfile {
   /** The learner's own words, kept verbatim for the assistant to quote. */
   goalStatement: string
   pace: Pace
+  /** When the questionnaire was finished. Null means it has not been. */
+  onboardedAt: number | null
+  /** A short summary of who this learner is, kept verbatim for the UI. */
+  intro: string
 }
 
 /** A single reason line shown in the "why this?" panel. */
@@ -123,6 +129,33 @@ export interface LearningPath {
 }
 
 export type ItemStatus = 'todo' | 'active' | 'done'
+
+export type MarkKind = 'added' | 'removed'
+
+/**
+ * A change the planner made to the path, held until the learner has seen it.
+ *
+ * A removed item is no longer in the path, so the mark carries enough to
+ * render it in place: the title, and the id it used to follow.
+ */
+export interface PathMark {
+  kind: MarkKind
+  at: number
+  /** The item this one followed in the old path. Null means it was first. */
+  afterResourceId: ResourceId | null
+  title: string
+  /** Why it moved — shown on the ghost row. */
+  note?: string
+}
+
+/** A belief about one skill, carried between rounds of questions. */
+export interface MasteryRecord {
+  level: Level
+  confidence: number
+  source: 'assumed' | 'verified'
+  distribution?: number[]
+  at: number
+}
 
 export interface ChatMessage {
   id: string

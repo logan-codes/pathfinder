@@ -44,6 +44,11 @@ export const ProfileSchema = z.object({
     .max(50)
     .default([])
     .transform((values) => values.map((value) => safeField(value, 60))),
+  avoid: z
+    .array(z.string().max(60))
+    .max(50)
+    .default([])
+    .transform((values) => values.map((value) => safeField(value, 60))),
   completed: z.array(z.string().max(120)).max(500).default([]),
   selfRated: z.record(z.string().max(120), LevelSchema).default({}),
   goalId: z.string().max(120).nullable().default(null),
@@ -53,6 +58,13 @@ export const ProfileSchema = z.object({
     .default('')
     .transform((value) => safeField(value, 2000)),
   pace: z.enum(['light', 'steady', 'intense']).default('steady'),
+  /** Null until the questionnaire is finished. */
+  onboardedAt: z.number().nullable().default(null),
+  intro: z
+    .string()
+    .max(2000)
+    .default('')
+    .transform((value) => safeField(value, 2000)),
 })
 
 export type ProfileInput = z.infer<typeof ProfileSchema>
@@ -90,6 +102,28 @@ export const NarrateRequest = z.object({
   resourceId: z.string().min(1).max(120),
   /** `brief` is one paragraph; `coaching` adds a second-person nudge. */
   style: z.enum(['brief', 'coaching']).default('brief'),
+  provider: providerChoice,
+})
+
+/**
+ * What the browser answered the questionnaire with. The steps themselves are
+ * client-side data, so the server validates shape and size only — a new step
+ * must not need a deploy on this side to be answerable.
+ */
+export const OnboardingRequest = z.object({
+  profile: ProfileSchema,
+  answers: z
+    .array(
+      z.object({
+        stepId: z.string().min(1).max(60),
+        values: z
+          .array(z.string().max(2000))
+          .max(60)
+          .transform((values) => values.map((value) => safeField(value, 2000))),
+      }),
+    )
+    .max(40)
+    .default([]),
   provider: providerChoice,
 })
 
@@ -229,4 +263,46 @@ export const StateSaveRequest = z.object({
     )
     .max(400)
     .default([]),
+
+  /**
+   * What the last round of questions established, per skill. Replayed as the
+   * prior on the next round, so evidence compounds across sessions.
+   */
+  mastery: z
+    .record(
+      z.string().max(120),
+      z
+        .object({
+          level: LevelSchema,
+          confidence: z.number().min(0).max(1),
+          source: z.enum(['assumed', 'verified']),
+          distribution: z.array(z.number().min(0)).length(6).optional(),
+          at: z.number(),
+        })
+        .strip(),
+    )
+    .default({}),
+
+  /**
+   * Path changes the learner has not acknowledged yet. Shape-checked only:
+   * losing somebody's highlights to a schema change is worse than storing a
+   * mark the UI does not understand.
+   */
+  marks: z
+    .record(
+      z.string().max(120),
+      z
+        .object({
+          kind: z.enum(['added', 'removed']),
+          at: z.number(),
+          afterResourceId: z.string().max(120).nullable(),
+          title: z.string().max(240),
+          note: z.string().max(400).optional(),
+        })
+        .strip(),
+    )
+    .default({}),
+
+  /** Items ticked while the server was unreachable. */
+  unverified: z.record(z.string().max(120), z.boolean()).default({}),
 })

@@ -23,7 +23,9 @@ import type {
   LearnerProfile,
   LearningPath,
   Level,
+  MasteryRecord,
   PathItem,
+  PathMark,
   Reason,
   Resource,
   Skill,
@@ -127,6 +129,12 @@ export interface LearnerState {
   profile: LearnerProfile | null
   progress: Record<string, ItemStatus>
   conversation: ChatMessage[]
+  /** Per-skill posterior from graded checks. Replayed as the next prior. */
+  mastery: Record<SkillId, MasteryRecord>
+  /** Path changes the learner has not clicked through yet. */
+  marks: Record<string, PathMark>
+  /** Items ticked with no check behind them — the server was unreachable. */
+  unverified: Record<string, boolean>
 }
 
 export interface AuthSession extends LearnerState {
@@ -436,6 +444,66 @@ export const postQuizGrade = (
   },
   signal?: AbortSignal,
 ) => request<GradeResponse>('POST', '/quiz/grade', payload, signal)
+
+// ---- onboarding ---------------------------------------------------------
+
+/** One answer to one questionnaire step, in the shape the server reads. */
+export interface OnboardingAnswer {
+  stepId: string
+  /** Free text for a text step; option ids otherwise. */
+  values: string[]
+}
+
+/**
+ * A follow-up the model thought worth asking. Every option carries the tag or
+ * skill id it writes, validated server-side against the catalogue, so a
+ * follow-up can only move the profile in ways the static steps already can.
+ */
+export interface FollowupQuestion {
+  id: string
+  prompt: string
+  options: Array<{ id: string; label: string; tag?: string; skillId?: SkillId }>
+}
+
+export interface FollowupResponse {
+  questions: FollowupQuestion[]
+  source: 'llm' | 'none'
+  degraded: boolean
+  provider: string | null
+  model: string | null
+}
+
+export const postOnboardingFollowup = (
+  payload: { profile: LearnerProfile; answers: OnboardingAnswer[] },
+  options: EdgeOptions = {},
+) =>
+  request<FollowupResponse>(
+    'POST',
+    '/onboarding/followup',
+    { ...payload, provider: options.provider ?? undefined },
+    options.signal,
+  )
+
+export interface IntroResponse {
+  text: string
+  /** `template` means the deterministic summary, verbatim. */
+  source: 'llm' | 'template'
+  degraded: boolean
+  provider: string | null
+  model: string | null
+  violations: Violation[]
+}
+
+export const postOnboardingSummary = (
+  payload: { profile: LearnerProfile; answers: OnboardingAnswer[] },
+  options: EdgeOptions = {},
+) =>
+  request<IntroResponse>(
+    'POST',
+    '/onboarding/summary',
+    { ...payload, provider: options.provider ?? undefined },
+    options.signal,
+  )
 
 // ---- diagnostics --------------------------------------------------------
 

@@ -13,7 +13,7 @@
 
 import { NavLink } from 'react-router-dom'
 import {
-  ClipboardCheck,
+  Compass,
   LayoutGrid,
   MessageSquare,
   PanelLeftClose,
@@ -30,7 +30,7 @@ const NAV = [
   { to: '/', label: 'Assistant', Icon: MessageSquare, end: true },
   { to: '/path', label: 'Learning path', Icon: Route, end: false },
   { to: '/dashboard', label: 'Dashboard', Icon: LayoutGrid, end: false },
-  { to: '/assess', label: 'Assessment', Icon: ClipboardCheck, end: false },
+  { to: '/discover', label: 'Discover', Icon: Compass, end: false },
   { to: '/settings', label: 'Settings', Icon: Settings, end: false },
 ]
 

@@ -4,10 +4,11 @@ import { Menu } from 'lucide-react'
 import { ConnectionBadge } from '@/components/ConnectionBadge'
 import { Sidebar } from '@/components/Sidebar'
 import { ThemeToggle } from '@/components/ThemeToggle'
-import { AssessRoute } from '@/routes/Assess'
 import { ChatRoute } from '@/routes/Chat'
 import { DashboardRoute } from '@/routes/Dashboard'
+import { DiscoverRoute } from '@/routes/Discover'
 import { LoginRoute } from '@/routes/Login'
+import { OnboardingRoute } from '@/routes/Onboarding'
 import { PathRoute } from '@/routes/Path'
 import { SettingsRoute } from '@/routes/Settings'
 import { useAppStore } from '@/store/useAppStore'
@@ -18,7 +19,7 @@ const TITLES: Record<string, { title: string; sub: string }> = {
   '/path': { title: 'Learning path', sub: 'Sequenced roadmap with prerequisites' },
   '/dashboard': { title: 'Dashboard', sub: 'Progress, skills and next actions' },
   '/settings': { title: 'Settings', sub: 'Account, profile and what drives the plan' },
-  '/assess': { title: 'Assessment', sub: 'Measure a level instead of assuming it' },
+  '/discover': { title: 'Discover', sub: 'Find what you did not know to look for' },
 }
 
 const COLLAPSE_KEY = 'pf-nav-collapsed'
@@ -42,6 +43,9 @@ export default function App() {
   const profile = useAppStore((s) => s.profile)
   const progress = useAppStore((s) => s.status)
   const messages = useAppStore((s) => s.messages)
+  const mastery = useAppStore((s) => s.mastery)
+  const marks = useAppStore((s) => s.marks)
+  const unverified = useAppStore((s) => s.unverified)
 
   const refreshAuth = useAuthStore((s) => s.refresh)
   const authStatus = useAuthStore((s) => s.status)
@@ -73,8 +77,8 @@ export default function App() {
    */
   useEffect(() => {
     if (authStatus !== 'signed-in') return
-    queueStateSave({ profile, progress, conversation: messages })
-  }, [profile, progress, messages, authStatus, queueStateSave])
+    queueStateSave({ profile, progress, conversation: messages, mastery, marks, unverified })
+  }, [profile, progress, messages, mastery, marks, unverified, authStatus, queueStateSave])
 
   const toggleCollapsed = useCallback(() => {
     setCollapsed((previous) => {
@@ -91,6 +95,15 @@ export default function App() {
   // Sign-in is its own screen: no sidebar, no topbar, nothing to navigate
   // away into before you have decided what you are doing.
   if (pathname === '/login') return <LoginRoute />
+
+  // The questionnaire is the same: one question at a time, with nothing to
+  // wander off into. It is also the only way a new account gets a profile, so
+  // a signed-in learner who has not finished it is sent back to it — the
+  // alternative is a dashboard reporting on answers nobody gave.
+  if (pathname === '/onboarding') return <OnboardingRoute />
+  if (authStatus === 'signed-in' && !profile.onboardedAt) {
+    return <Navigate to="/onboarding" replace />
+  }
 
   const head = TITLES[pathname] ?? { title: 'Pathfinder', sub: '' }
 
@@ -132,7 +145,9 @@ export default function App() {
             <Route path="/settings" element={<SettingsRoute />} />
             {/* The profile page grew into settings; old links still work. */}
             <Route path="/profile" element={<Navigate to="/settings" replace />} />
-            <Route path="/assess" element={<AssessRoute />} />
+            <Route path="/discover" element={<DiscoverRoute />} />
+            {/* The assessment page became Discover; old links still work. */}
+            <Route path="/assess" element={<Navigate to="/discover" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
