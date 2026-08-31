@@ -10,6 +10,7 @@
 
 import { z } from 'zod'
 import type { LearnerProfile, Level } from '../src/lib/types'
+import { MIN_PASSWORD_LENGTH } from './config'
 import { safeField } from './guard'
 
 /** Fails compilation when the condition is false. */
@@ -127,5 +128,70 @@ export const QuizGradeRequest = z.object({
 })
 
 export const SkillsRequest = z.object({
+  profile: ProfileSchema,
+})
+
+// ---- accounts -----------------------------------------------------------
+
+/**
+ * Deliberately permissive. A real address is one that receives mail, and
+ * nothing here sends any — so this rejects obvious typos and gets out of the
+ * way. The regexes that try to encode RFC 5322 reject valid addresses people
+ * genuinely have.
+ */
+const email = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .min(3)
+  .max(254)
+  .refine((value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value), 'That does not look like an email.')
+
+/**
+ * A length floor and nothing else. Composition rules push people towards
+ * `Passw0rd!` and away from the long memorable strings that are actually
+ * harder to guess. The upper bound exists because scrypt will happily spend
+ * a second hashing a megabyte someone pasted in.
+ */
+const password = z
+  .string()
+  .min(MIN_PASSWORD_LENGTH, `Use at least ${MIN_PASSWORD_LENGTH} characters.`)
+  .max(200)
+
+export const RegisterRequest = z.object({
+  email,
+  password,
+  name: z
+    .string()
+    .max(120)
+    .default('')
+    .transform((value) => safeField(value, 120)),
+})
+
+export const LoginRequest = z.object({
+  email,
+  /** Not `password`: an existing account may predate a raised floor. */
+  password: z.string().min(1, 'Enter your password.').max(200),
+})
+
+export const AccountPatchRequest = z
+  .object({
+    name: z
+      .string()
+      .max(120)
+      .transform((value) => safeField(value, 120))
+      .optional(),
+    email: email.optional(),
+  })
+  .refine((patch) => patch.name !== undefined || patch.email !== undefined, {
+    message: 'Nothing to change.',
+  })
+
+export const PasswordChangeRequest = z.object({
+  currentPassword: z.string().min(1).max(200),
+  newPassword: password,
+})
+
+export const ProfileSaveRequest = z.object({
   profile: ProfileSchema,
 })

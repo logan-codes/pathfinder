@@ -75,6 +75,8 @@
   --radius-sm: 3px;
 
   --sidebar-w: 232px;
+  /* Wide enough for a 15px icon plus a comfortable hit target. */
+  --sidebar-rail-w: 56px;
   --topbar-h:  49px;
   --rail-w:    320px;
   --content-max: 1180px;

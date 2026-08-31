@@ -50,7 +50,7 @@ export class ApiError extends Error {
 }
 
 async function request<T>(
-  method: 'GET' | 'POST',
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   route: string,
   body?: unknown,
   signal?: AbortSignal,
@@ -58,6 +58,9 @@ async function request<T>(
   const response = await fetch(`${base}${route}`, {
     method,
     signal,
+    // The session lives in an httpOnly cookie, so it is never readable from
+    // here — the browser has to be told to attach it.
+    credentials: 'include',
     headers: body === undefined ? undefined : { 'content-type': 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body),
   })
@@ -94,6 +97,89 @@ async function request<T>(
 
   return payload as T
 }
+
+// ---- accounts -----------------------------------------------------------
+//
+// Sign-in is optional everywhere in this app. What an account buys is one
+// profile across two browsers; everything else works signed out, because the
+// planning routes are stateless and the engine also runs locally.
+//
+// Identity is Supabase Auth, behind the API. Tokens never reach this bundle:
+// the server keeps them in httpOnly cookies, so there is nothing here for an
+// injected script to read.
+
+export interface AccountUser {
+  id: string
+  email: string
+  name: string
+  createdAt: number
+}
+
+export interface AuthSession {
+  /** Null when the project requires email confirmation and it is pending. */
+  user: AccountUser | null
+  pendingConfirmation: boolean
+  message?: string
+  expiresAt?: number
+  /** The profile saved against this account, or null on a new one. */
+  profile: LearnerProfile | null
+}
+
+export interface WhoAmI {
+  user: AccountUser | null
+  profile: LearnerProfile | null
+  /** False when the server has no Supabase credentials — hide sign-in. */
+  available: boolean
+  registrationOpen: boolean
+  /** Closing an account needs a service-role key the server may not have. */
+  canDeleteAccount: boolean
+}
+
+/** Answers 200 with `user: null` when nobody is signed in — not an error. */
+export const getAuthMe = (signal?: AbortSignal) =>
+  request<WhoAmI>('GET', '/auth/me', undefined, signal)
+
+export const postRegister = (
+  input: { email: string; password: string; name: string },
+  signal?: AbortSignal,
+) => request<AuthSession>('POST', '/auth/register', input, signal)
+
+export const postLogin = (
+  input: { email: string; password: string },
+  signal?: AbortSignal,
+) => request<AuthSession>('POST', '/auth/login', input, signal)
+
+export const postLogout = (signal?: AbortSignal) =>
+  request<{ ok: true }>('POST', '/auth/logout', undefined, signal)
+
+export const postLogoutAll = (signal?: AbortSignal) =>
+  request<{ ok: true }>('POST', '/auth/logout-all', undefined, signal)
+
+export const patchAccount = (
+  patch: { name?: string; email?: string },
+  signal?: AbortSignal,
+) =>
+  request<{ user: AccountUser; emailPending: boolean }>('PATCH', '/auth/me', patch, signal)
+
+export const postPasswordChange = (
+  input: { currentPassword: string; newPassword: string },
+  signal?: AbortSignal,
+) =>
+  request<{ ok: true; signedOutEverywhere: true }>('POST', '/auth/password', input, signal)
+
+export const deleteAccount = (signal?: AbortSignal) =>
+  request<{ ok: true }>('DELETE', '/auth/me', undefined, signal)
+
+export const getSavedProfile = (signal?: AbortSignal) =>
+  request<{ profile: LearnerProfile | null }>('GET', '/me/profile', undefined, signal)
+
+export const putSavedProfile = (profile: LearnerProfile, signal?: AbortSignal) =>
+  request<{ profile: LearnerProfile; savedAt: number }>(
+    'PUT',
+    '/me/profile',
+    { profile },
+    signal,
+  )
 
 // ---- catalogue ----------------------------------------------------------
 

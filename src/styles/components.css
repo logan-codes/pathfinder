@@ -311,3 +311,43 @@
 .conn--ok   .conn__dot { background: var(--ok); }
 .conn--warn { border-color: var(--warn-line); color: var(--warn); }
 .conn--warn .conn__dot { background: var(--warn); }
+
+/* ---------------- spinner ---------------- */
+
+.spin { animation: spin 900ms linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Motion is feedback, not decoration. Someone who has asked for less of it
+   still needs to know the button did something — the icon just stops
+   turning. */
+@media (prefers-reduced-motion: reduce) {
+  .spin { animation: none; }
+}
+
+/* ---------------- segmented control ---------------- */
+
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.segmented__item {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-3);
+  background: transparent;
+  border: 0;
+  border-right: 1px solid var(--line);
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: var(--t-sm);
+  cursor: pointer;
+  transition: background var(--dur), color var(--dur);
+}
+.segmented__item:last-child { border-right: 0; }
+.segmented__item:hover { background: var(--bg-hover); color: var(--fg); }
+.segmented__item--on { background: var(--bg-hover); color: var(--fg); font-weight: 500; }
+.segmented__item--on svg { color: var(--accent); }

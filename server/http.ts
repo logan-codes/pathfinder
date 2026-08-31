@@ -7,7 +7,28 @@
 import { createHash, timingSafeEqual } from 'node:crypto'
 import type { NextFunction, Request, RequestHandler, Response } from 'express'
 import type { ZodType } from 'zod'
-import { API_KEY } from './config'
+import { API_KEY, COOKIE_SECURE, SESSION_TTL_MS } from './config'
+import { refreshSession, resolveAccessToken, supabaseEnabled, type Caller } from './supabase'
+
+/** The signed-in learner, when there is one. Set by `attachSession`. */
+declare module 'express-serve-static-core' {
+  interface Request {
+    user?: Caller
+  }
+}
+
+/**
+ * Two cookies rather than one. Supabase issues a short-lived access token
+ * (an hour by default) and a long-lived refresh token; keeping them separate
+ * means the access token can be replaced without touching the thing that
+ * authorises replacing it.
+ *
+ * Both are httpOnly, so no script on the page can read either — which is the
+ * point of not putting them in localStorage the way the Supabase browser SDK
+ * does by default.
+ */
+export const ACCESS_COOKIE = 'pf_at'
+export const REFRESH_COOKIE = 'pf_rt'
 
 export interface ErrorBody {
   error: {
@@ -102,31 +123,134 @@ export function rateLimit(options: { limit: number; windowMs: number }): Request
   }
 }
 
+// ---- credentials --------------------------------------------------------
+
 /**
- * Optional shared-secret auth, on when PATHFINDER_API_KEY is set.
+ * Express does not parse cookies without middleware, and the one header we
+ * care about is worth five lines more than it is worth a dependency.
+ */
+function cookie(req: Request, name: string): string | null {
+  const header = req.get('cookie')
+  if (!header) return null
+
+  for (const part of header.split(';')) {
+    const eq = part.indexOf('=')
+    if (eq < 0) continue
+    if (part.slice(0, eq).trim() !== name) continue
+    try {
+      return decodeURIComponent(part.slice(eq + 1).trim())
+    } catch {
+      return null
+    }
+  }
+  return null
+}
+
+/** A bearer credential, from either the header or the access cookie. */
+function presentedToken(req: Request): string | null {
+  const header = req.get('authorization')
+  if (header?.startsWith('Bearer ')) return header.slice(7).trim() || null
+  const apiKeyHeader = req.get('x-api-key')?.trim()
+  if (apiKeyHeader) return apiKeyHeader
+  return cookie(req, ACCESS_COOKIE)
+}
+
+function matchesApiKey(presented: string): boolean {
+  if (!API_KEY) return false
+  const expected = createHash('sha256').update(API_KEY).digest()
+  const actual = createHash('sha256').update(presented).digest()
+  return timingSafeEqual(expected, actual)
+}
+
+const COOKIE_BASE = {
+  httpOnly: true,
+  sameSite: 'lax',
+  secure: COOKIE_SECURE,
+  path: '/',
+} as const
+
+export function setSessionCookies(
+  res: Response,
+  tokens: { accessToken: string; refreshToken: string },
+): void {
+  // The access cookie is given the refresh cookie's lifetime rather than the
+  // token's. An expired token in a live cookie is exactly the case the
+  // refresh path handles; a missing cookie is not, and would look to the
+  // browser like being signed out an hour after signing in.
+  res.cookie(ACCESS_COOKIE, tokens.accessToken, { ...COOKIE_BASE, maxAge: SESSION_TTL_MS })
+  res.cookie(REFRESH_COOKIE, tokens.refreshToken, { ...COOKIE_BASE, maxAge: SESSION_TTL_MS })
+}
+
+export function clearSessionCookies(res: Response): void {
+  res.clearCookie(ACCESS_COOKIE, { path: '/' })
+  res.clearCookie(REFRESH_COOKIE, { path: '/' })
+}
+
+/**
+ * Resolves a Supabase session onto the request when one is present, silently
+ * refreshing an expired access token on the way through.
  *
- * Not a user system and not pretending to be one — it is the difference
- * between "anyone who finds the hostname can spend the key" and "you need
- * the secret we handed out". Comparison runs over digests so it is both
- * constant-time and length-independent.
+ * Never rejects. Signed out is a normal state in this app — routes that need
+ * a person say so with `requireUser`, and most routes here do not.
+ */
+export const attachSession: RequestHandler = async (req, res, next) => {
+  if (!supabaseEnabled()) return next()
+
+  const accessToken = cookie(req, ACCESS_COOKIE) ?? bearerOf(req)
+  if (accessToken) {
+    const caller = await resolveAccessToken(accessToken)
+    if (caller) {
+      req.user = caller
+      return next()
+    }
+  }
+
+  // No usable access token. If there is a refresh token, spend it — this is
+  // the ordinary path an hour after signing in, not an error.
+  const refreshToken = cookie(req, REFRESH_COOKIE)
+  if (!refreshToken) return next()
+
+  const refreshed = await refreshSession(refreshToken)
+  if (!refreshed) {
+    // The refresh token is dead too. Clear both, so the browser stops
+    // presenting credentials that will never work again.
+    clearSessionCookies(res)
+    return next()
+  }
+
+  setSessionCookies(res, refreshed)
+  req.user = refreshed.caller
+  next()
+}
+
+/** Only the Authorization header, for callers with no cookie jar. */
+function bearerOf(req: Request): string | null {
+  const header = req.get('authorization')
+  return header?.startsWith('Bearer ') ? header.slice(7).trim() || null : null
+}
+
+/**
+ * The deployment door, on when PATHFINDER_API_KEY is set.
+ *
+ * Two things open it: the shared key (for machines) or a valid user session
+ * (for people). Without that second case a browser could never reach the
+ * login route to get a session in the first place.
+ *
+ * Comparison runs over digests, so it is constant-time and length-independent.
  */
 export function requireApiKey(): RequestHandler {
   if (!API_KEY) return (_req, _res, next) => next()
 
-  const expected = createHash('sha256').update(API_KEY).digest()
-
   return (req, _res, next) => {
-    const header = req.get('authorization')
-    const bearer = header?.startsWith('Bearer ') ? header.slice(7).trim() : null
-    const presented = bearer || req.get('x-api-key')?.trim()
+    if (req.user) return next()
 
+    const presented = presentedToken(req)
     if (!presented) {
       next(new HttpError(401, 'unauthorized', 'Missing API key. Send Authorization: Bearer <key>.'))
       return
     }
 
-    const actual = createHash('sha256').update(presented).digest()
-    if (!timingSafeEqual(expected, actual)) {
+    if (!matchesApiKey(presented)) {
       next(new HttpError(403, 'forbidden', 'That API key is not valid.'))
       return
     }
@@ -135,18 +259,18 @@ export function requireApiKey(): RequestHandler {
   }
 }
 
-/** Whether a request carried the right key. Lets a route answer in less detail. */
+/** For routes that need a person rather than a machine. */
+export const requireUser: RequestHandler = (req, _res, next) => {
+  if (req.user) return next()
+  next(new HttpError(401, 'not_signed_in', 'Sign in to use this route.'))
+}
+
+/** Whether a request carried any accepted credential. */
 export function isAuthenticated(req: Request): boolean {
   if (!API_KEY) return true
-
-  const header = req.get('authorization')
-  const bearer = header?.startsWith('Bearer ') ? header.slice(7).trim() : null
-  const presented = bearer || req.get('x-api-key')?.trim()
-  if (!presented) return false
-
-  const expected = createHash('sha256').update(API_KEY).digest()
-  const actual = createHash('sha256').update(presented).digest()
-  return timingSafeEqual(expected, actual)
+  if (req.user) return true
+  const presented = presentedToken(req)
+  return presented !== null && matchesApiKey(presented)
 }
 
 export function notFound(req: Request, _res: Response, next: NextFunction) {

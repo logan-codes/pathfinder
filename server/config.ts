@@ -178,6 +178,67 @@ export const INJECTION_POLICY: InjectionPolicy =
  */
 export const EXTRA_BLOCK_TERMS = listEnv('PATHFINDER_BLOCK_TERMS', '')
 
+// ---- accounts (Supabase) ------------------------------------------------
+
+/**
+ * Supabase owns identity and the profiles table. Nothing else — planning,
+ * grading, guardrails and the model edges are all still this process, and
+ * still work with no Supabase configured at all.
+ *
+ * Absent credentials is a supported state, not a misconfiguration: the auth
+ * routes answer 503, the UI hides sign-in, and every other route is
+ * unaffected.
+ */
+export const SUPABASE_URL = process.env.SUPABASE_URL?.trim().replace(/\/+$/, '') || null
+
+/** Safe to expose to a browser; RLS is what actually protects the data. */
+export const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY?.trim() || null
+
+/**
+ * Bypasses RLS. Optional — only account deletion needs it. Server-side only,
+ * never sent to a client, and never used to read or write profile rows.
+ */
+export const SUPABASE_SERVICE_ROLE_KEY =
+  process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() || null
+
+/**
+ * Where Supabase should send someone after they confirm an email address.
+ * Only used when the project has email confirmation switched on.
+ */
+export const AUTH_REDIRECT_URL =
+  process.env.PATHFINDER_AUTH_REDIRECT_URL?.trim() || 'http://localhost:5173/login'
+
+/** Open by default, because a demo nobody can sign up to is a demo of nothing. */
+export const ALLOW_REGISTRATION = boolEnv('PATHFINDER_ALLOW_REGISTRATION', true)
+
+/**
+ * Deliberately a length floor and nothing else. Composition rules push people
+ * towards `Passw0rd!` and away from the long, memorable strings that are
+ * actually harder to guess. Supabase enforces its own minimum too; this one
+ * gives a better message, before the round trip.
+ */
+export const MIN_PASSWORD_LENGTH = intEnv('PATHFINDER_MIN_PASSWORD_LENGTH', 10, { min: 8 })
+
+/** Sign-in attempts per window, per IP. Low: this is a brute-force brake. */
+export const AUTH_RATE_LIMIT = intEnv('PATHFINDER_AUTH_RATE_LIMIT', 10)
+export const AUTH_RATE_WINDOW_MS = intEnv('PATHFINDER_AUTH_RATE_WINDOW_MS', 300_000)
+
+/**
+ * `Secure` on the session cookies. Off by default because the demo runs on
+ * http://localhost, where a Secure cookie is simply never sent. Turn it on
+ * for any deployment that has TLS, which is all of them.
+ */
+export const COOKIE_SECURE = boolEnv('PATHFINDER_COOKIE_SECURE', false)
+
+/**
+ * How long the refresh cookie lives. The access token has its own, much
+ * shorter life decided by Supabase (an hour by default) and is refreshed
+ * transparently; this is just how long a browser may go between visits
+ * before it has to sign in again.
+ */
+export const SESSION_TTL_MS =
+  intEnv('PATHFINDER_SESSION_TTL_HOURS', 24 * 14, { min: 1 }) * 60 * 60 * 1000
+
 /** Prose ceilings, enforced on model output rather than merely requested. */
 export const MAX_REPLY_SENTENCES = intEnv('PATHFINDER_MAX_REPLY_SENTENCES', 4)
 export const MAX_REPLY_CHARS = intEnv('PATHFINDER_MAX_REPLY_CHARS', 900)

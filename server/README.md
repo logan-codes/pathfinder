@@ -30,9 +30,12 @@ server/
   llm.ts          the three model calls, and the fallback behind each
   guard.ts        input screening and output validation, both deterministic
   budget.ts       process-wide ceiling on calls, tokens and estimated spend
+  supabase.ts     identity and the profiles table — the only stateful part
   mastery.ts      posterior over skill levels; the accept/ask-more/refresh rule
   quiz.ts         reads data/quiz-bank.json; grading; answer keys stay here
   routes/         one file per group of endpoints
+supabase/
+  migrations/     the profiles table, its RLS policies, and the signup trigger
 data/
   quiz-bank.json  committed assessment items, authored offline
 scripts/
@@ -281,6 +284,75 @@ Model packages load with a dynamic import. A provider whose package is not
 installed reports itself unavailable instead of taking the server down, so a
 slimmed-down install still boots.
 
+## Accounts
+
+Identity is **Supabase Auth**; the `profiles` table is **Supabase Postgres**.
+Nothing else moved. Planning, ordering, grading, the guardrails and the model
+layer are all still this process, still deterministic, and still work with no
+Supabase configured at all.
+
+**Sign-in is optional and the app is built that way.** An account buys one
+thing: the same learner profile in two browsers. Every planning route is
+stateless and answers signed out, the engine also runs in the browser, and
+the login screen's "Continue without an account" is a first-class choice
+rather than a grudging link. With no `SUPABASE_URL` set, the auth routes
+answer 503, the UI hides sign-in, and everything else is untouched.
+
+### Setup
+
+1. Create a project at [supabase.com/dashboard](https://supabase.com/dashboard)
+2. **Settings → API**: copy the Project URL and the anon key into `.env` as
+   `SUPABASE_URL` and `SUPABASE_ANON_KEY`. The service-role key is optional —
+   it only unlocks account deletion, which has to bypass RLS.
+3. Run [`supabase/migrations/0001_profiles.sql`](../supabase/migrations/0001_profiles.sql)
+   in the SQL editor (or `supabase db push` with the project linked). It is
+   re-runnable.
+4. **Authentication → Providers → Email**: turn **off** "Confirm email" for a
+   demo. Left on, sign-ups sit unconfirmed until someone clicks a link in
+   their inbox — the API handles that case and returns `202` with
+   `pendingConfirmation: true`, but it is not what you want in front of a
+   judge.
+
+### Why the tokens go through this server
+
+The browser SDK keeps its session in `localStorage`, where any injected
+script can read it. Here the front end never sees a token at all: sign-in
+goes through `/api/auth/*`, and the access and refresh tokens come back as
+two httpOnly cookies. `attachSession` verifies the access token on the way
+in and silently spends the refresh token when it has expired, which is the
+ordinary path an hour after signing in.
+
+The anon key stays server-side too. It is safe to publish — RLS is what
+actually protects the data — but not shipping it is still strictly better.
+
+### Authorisation is in Postgres, not in a route
+
+Profile reads and writes go through a client carrying the caller's access
+token, so `auth.uid()` resolves inside the database and the policies in the
+migration do the deciding. A bug in `routes/auth.ts` cannot return someone
+else's row, because the route is not what grants access. The service-role
+key — the one that *does* bypass RLS — is used for exactly one operation,
+deleting a user from `auth.users`, and never touches profile data.
+
+### Routes
+
+| Route | Notes |
+|---|---|
+| `POST /api/auth/register` | `201` with a session, or `202` with `pendingConfirmation` |
+| `POST /api/auth/login` | Returns the saved profile alongside the session, so the client adopts it in one round trip |
+| `POST /api/auth/logout` | Revokes server-side, not just locally |
+| `GET /api/auth/me` | `200` with `user: null` when signed out — not an error |
+| `PATCH /api/auth/me` | Name and email; an email change needs confirming |
+| `POST /api/auth/password` | Re-authenticates first, then ends every session |
+| `DELETE /api/auth/me` | Needs the service-role key |
+| `GET/PUT /api/me/profile` | The profile, validated by the same `ProfileSchema` every planning route uses |
+
+Sign-in sits **ahead** of the `PATHFINDER_API_KEY` door — you cannot present
+a credential you have not been issued yet — behind a much tighter limiter
+(`PATHFINDER_AUTH_RATE_LIMIT`, default 10 per 5 minutes), because this is the
+one route where guessing is the whole attack. Past that door, a signed-in
+session counts as a credential: people use sessions, machines use the key.
+
 ## Guardrails
 
 Deterministic and offline, all of them. A guardrail that needs a network call
@@ -398,10 +470,16 @@ A/B tested, and no human would ever have reviewed an answer key.
 
 ## Known limitations
 
-- **No persistence, and auth is one shared secret.** The API is stateless: the
-  client sends the profile and gets the recomputed result back.
-  `PATHFINDER_API_KEY` is a door, not a user system — real deployment needs a
-  store and a session before anything here is multi-tenant.
+- **Accounts are a hosted dependency; the rest of the app is not.** Supabase
+  is the one thing here that needs the network. That is a deliberate seam:
+  sign-in fails softly, and planning, grading and the model edges carry on.
+  Watch for it drifting — the moment a planning route needs a session, the
+  offline claim is gone.
+- **No password reset, no email verification flow of our own, no OAuth.**
+  Supabase supports all three; none is wired up. Reset and verification are
+  Supabase's own email templates and need SMTP configured on the project.
+- **`PATHFINDER_API_KEY` is a door, not a user system.** It gates the
+  deployment; sessions identify people. Two different axes, deliberately.
 - **The injection detector is patterns, not a classifier.** It catches the
   copy-pasted attempts, which is what an ungated demo actually sees. The real
   defence is structural: the model picks from a closed enum, never decides

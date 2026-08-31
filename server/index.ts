@@ -27,7 +27,10 @@ import cors from 'cors'
 import express from 'express'
 import helmet from 'helmet'
 import {
+  ALLOW_REGISTRATION,
   API_KEY,
+  AUTH_RATE_LIMIT,
+  AUTH_RATE_WINDOW_MS,
   CORS_ORIGINS,
   HOST,
   INJECTION_POLICY,
@@ -35,12 +38,15 @@ import {
   LLM_RATE_LIMIT,
   LLM_RATE_WINDOW_MS,
   PORT,
+  SUPABASE_URL,
   TRUST_PROXY,
 } from './config'
 import { budgetReport } from './budget'
-import { errorHandler, notFound, rateLimit, requireApiKey } from './http'
+import { attachSession, errorHandler, notFound, rateLimit, requireApiKey } from './http'
 import { llmEnabled, modelFor, resolveChain } from './providers'
 import { bankMeta } from './quiz'
+import { supabaseAdminEnabled, supabaseEnabled } from './supabase'
+import { authRouter } from './routes/auth'
 import { catalogRouter } from './routes/catalog'
 import { chatRouter } from './routes/chat'
 import { goalRouter } from './routes/goal'
@@ -89,10 +95,17 @@ export function createApp() {
     }),
   )
 
-  app.use(cors({ origin: CORS_ORIGINS }))
+  // `credentials` so the browser will send the session cookie. With an
+  // explicit origin allowlist this stays a closed door rather than an open
+  // one — `*` and credentials are mutually exclusive for good reason.
+  app.use(cors({ origin: CORS_ORIGINS, credentials: true }))
   app.use(express.json({ limit: '256kb' }))
 
   const api = express.Router()
+
+  // Resolves a session onto the request when one is present, and does
+  // nothing when it is not. Signed out is a normal state here.
+  api.use(attachSession)
 
   // Open even when a key is configured: the index page carries no data, and
   // liveness is how you diagnose a server you cannot authenticate to. The
@@ -100,7 +113,18 @@ export function createApp() {
   api.use(rootRouter)
   api.use(healthRouter)
 
-  // Everything past this line needs the key, when one is set.
+  // Sign-in has to be reachable before you have a credential, so it sits
+  // ahead of the deployment door — with a much tighter limiter, since this
+  // is the one route where guessing is the whole attack.
+  const authLimiter = rateLimit({ limit: AUTH_RATE_LIMIT, windowMs: AUTH_RATE_WINDOW_MS })
+  api.post('/auth/login', authLimiter)
+  api.post('/auth/register', authLimiter)
+  api.post('/auth/password', authLimiter)
+  api.use(authRouter)
+
+  // Everything past this line needs the key, when one is set. A signed-in
+  // user counts as a credential, so people use sessions and machines use
+  // the key.
   api.use(requireApiKey())
 
   // Deterministic routes. No network, no key, no budget.
@@ -145,8 +169,11 @@ function banner(): string {
     llmEnabled()
       ? `  Providers        ${chain.map((id) => `${id} (${modelFor(id)})`).join(' -> ')}`
       : `  Providers        none configured (mode: ${LLM_MODE}) — every route answers deterministically`,
-    `  Guardrails       injection: ${INJECTION_POLICY} - rate limit: ${LLM_RATE_LIMIT}/window - auth: ${API_KEY ? 'on' : 'off'}`,
+    `  Guardrails       injection: ${INJECTION_POLICY} - rate limit: ${LLM_RATE_LIMIT}/window - api key: ${API_KEY ? 'on' : 'off'}`,
     `  Budget           ${budget.limits.calls ?? '∞'} calls, ${budget.limits.tokens ?? '∞'} tokens, $${budget.limits.usd ?? '∞'}`,
+    supabaseEnabled()
+      ? `  Accounts         Supabase ${new URL(SUPABASE_URL!).host} - sign-up ${ALLOW_REGISTRATION ? 'open' : 'closed'}${supabaseAdminEnabled() ? '' : ' - no service key, account deletion off'}`
+      : `  Accounts         off (no SUPABASE_URL) — sign-in hidden, everything else works`,
     '',
   ]
 

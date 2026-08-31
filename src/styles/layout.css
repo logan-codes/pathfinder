@@ -4,7 +4,12 @@
   display: grid;
   grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
   min-height: 100vh;
+  transition: grid-template-columns var(--dur) ease-out;
 }
+
+/* Collapsed: a rail of icons. The width is the one thing that animates —
+   fading the labels as well reads as jitter rather than motion. */
+.app--collapsed { grid-template-columns: var(--sidebar-rail-w) minmax(0, 1fr); }
 
 /* ---------------- sidebar ---------------- */
 
@@ -83,6 +88,64 @@
   border-top: 1px solid var(--line);
 }
 
+.navitem__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* The collapse control sits in the brand row and only exists on desktop. */
+.sidebar__collapse { margin-left: auto; flex-shrink: 0; }
+
+/* ---------------- account block ---------------- */
+
+.sidebar__account {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-2);
+  margin: calc(var(--s-2) * -1);
+  border-radius: var(--radius);
+  color: inherit;
+  text-decoration: none;
+  min-width: 0;
+  transition: background var(--dur);
+}
+.sidebar__account:hover { background: var(--bg-hover); text-decoration: none; }
+.sidebar__account .sidebar__mark { border-color: var(--line-strong); flex-shrink: 0; }
+
+.sidebar__account-text { display: flex; flex-direction: column; min-width: 0; }
+.sidebar__account-name {
+  font-size: var(--t-sm);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sidebar__account-sub {
+  font-size: var(--t-xs);
+  color: var(--fg-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------------- collapsed rail ---------------- */
+
+.sidebar--collapsed .sidebar__name,
+.sidebar--collapsed .navitem__label,
+.sidebar--collapsed .navitem__count,
+.sidebar--collapsed .sidebar__account-text,
+.sidebar--collapsed .sidebar__hide-collapsed { display: none; }
+
+.sidebar--collapsed .sidebar__brand { padding: 0; justify-content: center; }
+/* The brand mark gives way to the toggle: at 56px there is room for one, and
+   the control you might need is worth more than the logo you already know. */
+.sidebar--collapsed .sidebar__brand .sidebar__mark { display: none; }
+.sidebar--collapsed .sidebar__collapse { margin: 0 auto; }
+
+.sidebar--collapsed .sidebar__nav { padding: var(--s-3) var(--s-2); }
+.sidebar--collapsed .navitem { justify-content: center; padding: var(--s-2); gap: 0; }
+.sidebar--collapsed .navitem--active { border-radius: var(--radius); }
+.sidebar--collapsed .sidebar__foot { padding: var(--s-2); }
+.sidebar--collapsed .sidebar__account { justify-content: center; margin: 0; }
+
 /* ---------------- main column ---------------- */
 
 .main { display: flex; flex-direction: column; min-width: 0; }
@@ -149,7 +212,8 @@
 }
 
 @media (max-width: 900px) {
-  .app { grid-template-columns: 1fr; }
+  .app,
+  .app--collapsed { grid-template-columns: 1fr; }
   .sidebar {
     position: fixed;
     z-index: 40;
@@ -158,6 +222,21 @@
     transition: transform var(--dur) ease-out;
   }
   .sidebar--open { transform: translateX(0); }
+
+  /* A rail is not what a phone needs, so the drawer ignores collapse
+     entirely and the toggle that sets it is hidden. */
+  .sidebar__collapse { display: none; }
+  .sidebar--collapsed { width: var(--sidebar-w); }
+  .sidebar--collapsed .sidebar__name,
+  .sidebar--collapsed .navitem__label,
+  .sidebar--collapsed .navitem__count,
+  .sidebar--collapsed .sidebar__account-text,
+  .sidebar--collapsed .sidebar__hide-collapsed { display: revert; }
+  .sidebar--collapsed .sidebar__account-text { display: flex; }
+  .sidebar--collapsed .sidebar__brand { padding: 0 var(--s-4); justify-content: flex-start; }
+  .sidebar--collapsed .sidebar__brand .sidebar__mark { display: grid; }
+  .sidebar--collapsed .navitem { justify-content: flex-start; padding: var(--s-2) var(--s-3); gap: var(--s-3); }
+  .sidebar--collapsed .sidebar__account { justify-content: flex-start; margin: calc(var(--s-2) * -1); }
   .scrim {
     position: fixed; inset: 0; z-index: 30;
     background: color-mix(in srgb, var(--fg) 30%, transparent);

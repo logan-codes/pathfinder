@@ -13,7 +13,7 @@ import { llmEnabled, modelFor, resolveChain } from '../providers'
 export const rootRouter = Router()
 
 interface Endpoint {
-  method: 'GET' | 'POST'
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   path: string
   summary: string
   /** True where a model may be called — each of these falls back if it is not. */
@@ -29,6 +29,12 @@ const ENDPOINTS: Endpoint[] = [
   { method: 'GET', path: '/api/quiz', summary: 'Item bank metadata and coverage' },
   { method: 'GET', path: '/api/quiz/:skillId', summary: 'Questions for a skill, without the answers' },
   { method: 'POST', path: '/api/quiz/grade', summary: 'Grade a round, update mastery, re-plan' },
+  { method: 'POST', path: '/api/auth/register', summary: 'Create an account and start a session' },
+  { method: 'POST', path: '/api/auth/login', summary: 'Start a session' },
+  { method: 'POST', path: '/api/auth/logout', summary: 'End this session' },
+  { method: 'GET', path: '/api/auth/me', summary: 'Who is signed in — `user: null` when nobody is' },
+  { method: 'GET', path: '/api/me/profile', summary: 'The signed-in learner’s saved profile' },
+  { method: 'PUT', path: '/api/me/profile', summary: 'Save the profile against the account' },
   { method: 'GET', path: '/api/providers', summary: 'Registered providers, which keys are present, failover order' },
   { method: 'POST', path: '/api/providers/check', summary: 'Live-check every configured key', model: true },
   { method: 'POST', path: '/api/goal/extract', summary: 'Free text to a known goal id', model: true },

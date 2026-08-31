@@ -331,3 +331,226 @@ kbd {
 
 .quiz__mark--ok { color: var(--ok); }
 .quiz__mark--no { color: var(--danger); }
+
+/* ============================================================
+   Sign-in
+   ============================================================ */
+
+.auth {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: var(--s-6);
+  background: var(--bg-sunken);
+}
+
+.auth__panel {
+  width: 100%;
+  max-width: 420px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg, 10px);
+  padding: var(--s-6);
+}
+
+.auth__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: var(--t-md);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin-bottom: var(--s-6);
+}
+
+.auth__title { font-size: var(--t-xl, 20px); margin-bottom: var(--s-1); }
+.auth__lede {
+  color: var(--fg-muted);
+  font-size: var(--t-sm);
+  margin-bottom: var(--s-5, var(--s-4));
+}
+
+.auth__tabs {
+  display: flex;
+  gap: 1px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 2px;
+  margin-bottom: var(--s-4);
+}
+.auth__tab {
+  flex: 1;
+  padding: var(--s-2);
+  background: transparent;
+  border: 0;
+  border-radius: calc(var(--radius) - 2px);
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: var(--t-sm);
+  cursor: pointer;
+  transition: background var(--dur), color var(--dur);
+}
+.auth__tab:hover:not(:disabled) { color: var(--fg); }
+.auth__tab--on { background: var(--bg-hover); color: var(--fg); font-weight: 500; }
+.auth__tab:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.auth__form { display: flex; flex-direction: column; gap: var(--s-4); }
+.auth__field { display: flex; flex-direction: column; gap: var(--s-2); }
+.auth__hint { color: var(--fg-faint); font-size: var(--t-xs); }
+
+.auth__submit { justify-content: center; width: 100%; }
+
+.auth__error {
+  color: var(--danger);
+  font-size: var(--t-sm);
+  border-left: 2px solid var(--danger);
+  padding-left: var(--s-3);
+}
+.auth__notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  color: var(--fg-muted);
+  font-size: var(--t-sm);
+  border-left: 2px solid var(--ok, var(--accent));
+  padding-left: var(--s-3);
+}
+
+.auth__unavailable {
+  display: flex;
+  gap: var(--s-3);
+  align-items: flex-start;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--s-4);
+  color: var(--fg-muted);
+  font-size: var(--t-sm);
+}
+.auth__unavailable strong { color: var(--fg); display: block; margin-bottom: var(--s-1); }
+
+.auth__divider {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin: var(--s-5, var(--s-4)) 0 var(--s-4);
+  color: var(--fg-faint);
+  font-size: var(--t-xs);
+}
+.auth__divider::before,
+.auth__divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.auth__guest { width: 100%; justify-content: center; }
+
+.auth__foot {
+  margin-top: var(--s-5, var(--s-4));
+  color: var(--fg-faint);
+  font-size: var(--t-xs);
+  line-height: 1.5;
+}
+
+/* ============================================================
+   Settings
+   ============================================================ */
+
+.settings__body {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: var(--s-6);
+  align-items: start;
+}
+
+.settings__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  position: sticky;
+  top: calc(var(--topbar-h) + var(--s-6));
+}
+
+.settings__tab {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-2) var(--s-3);
+  background: transparent;
+  border: 0;
+  border-left: 2px solid transparent;
+  border-radius: var(--radius);
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: var(--t-md);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur), color var(--dur);
+}
+.settings__tab:hover { background: var(--bg-hover); color: var(--fg); }
+.settings__tab--on {
+  background: var(--bg-hover);
+  color: var(--fg);
+  font-weight: 500;
+  border-left-color: var(--accent);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+.settings__tab--on svg { color: var(--accent); }
+
+.settings__panel { min-width: 0; display: flex; flex-direction: column; gap: var(--s-4); }
+
+.settings__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-4);
+  color: var(--fg-muted);
+  font-size: var(--t-md);
+  max-width: 60ch;
+}
+
+/* One setting per row: what it is on the left, the control on the right,
+   hairline between. The description is load-bearing — every setting here
+   changes what the engine recommends. */
+.setrows { display: flex; flex-direction: column; }
+
+.setrow {
+  display: flex;
+  align-items: center;
+  gap: var(--s-6);
+  padding: var(--s-4) 0;
+  border-bottom: 1px solid var(--line);
+}
+.setrow:first-child { padding-top: 0; }
+.setrow:last-child { border-bottom: 0; padding-bottom: 0; }
+
+.setrow__text { min-width: 0; flex: 1; }
+.setrow__label { font-size: var(--t-md); font-weight: 500; }
+.setrow__hint {
+  color: var(--fg-muted);
+  font-size: var(--t-sm);
+  margin-top: var(--s-1);
+  max-width: 56ch;
+}
+.setrow__control { flex-shrink: 0; }
+
+/* Controls too wide to sit beside their label drop underneath it instead of
+   squeezing the explanation into a column nobody can read. */
+.setrow--stacked { flex-direction: column; align-items: stretch; gap: var(--s-3); }
+.setrow--stacked .setrow__control { flex-shrink: 1; }
+
+@media (max-width: 900px) {
+  .settings__body { grid-template-columns: minmax(0, 1fr); }
+  .settings__nav {
+    position: static;
+    flex-direction: row;
+    overflow-x: auto;
+    gap: var(--s-1);
+    border-bottom: 1px solid var(--line);
+    padding-bottom: var(--s-2);
+  }
+  .settings__tab { border-left: 0; border-bottom: 2px solid transparent; white-space: nowrap; }
+  .settings__tab--on { border-radius: var(--radius); border-left: 0; border-bottom-color: var(--accent); }
+  .setrow { flex-direction: column; align-items: flex-start; gap: var(--s-3); }
+}

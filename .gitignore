@@ -9,3 +9,7 @@ dist
 .env
 .env.*
 !.env.example
+
+# Supabase CLI scratch (schema and migrations are committed).
+supabase/.temp
+supabase/.branches

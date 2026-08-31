@@ -173,6 +173,13 @@ interface AppState {
   // ---- actions ----
   setTheme: (choice: ThemeChoice) => void
   updateProfile: (patch: Partial<LearnerProfile>) => void
+  /**
+   * Replace the whole profile with one that came from outside — today, the
+   * profile stored against a signed-in account. Distinct from
+   * `updateProfile` because it is a wholesale swap rather than an edit, and
+   * because it must not be echoed straight back to the server.
+   */
+  adoptProfile: (profile: LearnerProfile) => void
   toggleInterest: (tag: string) => void
   toggleCompleted: (id: ResourceId) => void
   setSelfRated: (skillId: SkillId, level: Level) => void
@@ -268,6 +275,13 @@ export const useAppStore = create<AppState>()(
 
         updateProfile: (patch) => {
           set((s) => ({ profile: { ...s.profile, ...patch } }))
+          get().regenerate()
+        },
+
+        adoptProfile: (profile) => {
+          // Defaults for anything an older stored profile predates, so a
+          // profile saved before a field existed cannot arrive undefined.
+          set({ profile: { ...DEFAULT_PROFILE, ...profile } })
           get().regenerate()
         },
 
