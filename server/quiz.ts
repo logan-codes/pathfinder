@@ -15,7 +15,7 @@
  */
 
 import { z } from 'zod'
-import type { GradedItem } from './mastery'
+import type { GradedItem } from './mastery.js'
 import bankJson from '../data/quiz-bank.json' with { type: 'json' }
 
 const QuizOptionSchema = z.object({

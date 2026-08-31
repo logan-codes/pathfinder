@@ -29,9 +29,9 @@
 import type { AIMessage } from '@langchain/core/messages'
 import { HumanMessage, SystemMessage } from '@langchain/core/messages'
 import { z } from 'zod'
-import { getResource, skillName } from '../src/lib/catalog'
-import { pathResourceIds, profileSkills, skillGaps } from '../src/lib/engine'
-import { GOAL_BY_ID, GOALS, matchGoal } from '../src/lib/goals'
+import { getResource, skillName } from '../src/lib/catalog.js'
+import { pathResourceIds, profileSkills, skillGaps } from '../src/lib/engine.js'
+import { GOAL_BY_ID, GOALS, matchGoal } from '../src/lib/goals.js'
 import {
   PACE_HOURS,
   type Goal,
@@ -41,8 +41,8 @@ import {
   type Reason,
   type Resource,
   type SkillId,
-} from '../src/lib/types'
-import { assertWithinBudget, BudgetExceededError, recordUsage } from './budget'
+} from '../src/lib/types.js'
+import { assertWithinBudget, BudgetExceededError, recordUsage } from './budget.js'
 import {
   EXTRACTION_CONFIDENCE_FLOOR,
   LLM_MAX_RETRIES,
@@ -51,7 +51,7 @@ import {
   MAX_NARRATION_SENTENCES,
   MAX_REPLY_CHARS,
   MAX_REPLY_SENTENCES,
-} from './config'
+} from './config.js'
 import {
   fenceRule,
   fenced,
@@ -61,14 +61,14 @@ import {
   validateOutput,
   type InputScreening,
   type Violation,
-} from './guard'
+} from './guard.js'
 import {
   estimateCost,
   getModel,
   llmEnabled,
   resolveChain,
   type ProviderId,
-} from './providers'
+} from './providers.js'
 
 // ---- status -------------------------------------------------------------
 

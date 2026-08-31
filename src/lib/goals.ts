@@ -7,7 +7,7 @@
  * lookup; the rest of the pipeline is unchanged.
  */
 
-import type { Goal } from './types'
+import type { Goal } from './types.js'
 
 export const GOALS: Goal[] = [
   {

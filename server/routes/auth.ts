@@ -17,7 +17,7 @@
  */
 
 import { Router } from 'express'
-import { ALLOW_REGISTRATION, AUTH_REDIRECT_URL } from '../config'
+import { ALLOW_REGISTRATION, AUTH_REDIRECT_URL } from '../config.js'
 import {
   asyncHandler,
   clearSessionCookies,
@@ -25,14 +25,14 @@ import {
   parseBody,
   requireUser,
   setSessionCookies,
-} from '../http'
+} from '../http.js'
 import {
   AccountPatchRequest,
   LoginRequest,
   PasswordChangeRequest,
   RegisterRequest,
   StateSaveRequest,
-} from '../schema'
+} from '../schema.js'
 import {
   anon,
   asUser,
@@ -43,7 +43,7 @@ import {
   readState,
   supabaseEnabled,
   writeState,
-} from '../supabase'
+} from '../supabase.js'
 
 export const authRouter = Router()
 

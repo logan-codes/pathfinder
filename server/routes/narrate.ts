@@ -8,12 +8,12 @@
  */
 
 import { Router } from 'express'
-import { getResource } from '../../src/lib/catalog'
-import { buildPath, findPathItem, pathResourceIds } from '../../src/lib/engine'
-import { getGoal } from '../../src/lib/goals'
-import { asyncHandler, HttpError, parseBody } from '../http'
-import { narrate } from '../llm'
-import { NarrateRequest } from '../schema'
+import { getResource } from '../../src/lib/catalog.js'
+import { buildPath, findPathItem, pathResourceIds } from '../../src/lib/engine.js'
+import { getGoal } from '../../src/lib/goals.js'
+import { asyncHandler, HttpError, parseBody } from '../http.js'
+import { narrate } from '../llm.js'
+import { NarrateRequest } from '../schema.js'
 
 export const narrateRouter = Router()
 

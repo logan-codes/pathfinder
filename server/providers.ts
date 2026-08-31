@@ -31,7 +31,7 @@ import {
   PROVIDER_ORDER,
   PRICE_OVERRIDES,
   providerModelOverride,
-} from './config'
+} from './config.js'
 
 export type ProviderId = 'anthropic' | 'openai' | 'google' | 'groq' | 'mistral'
 

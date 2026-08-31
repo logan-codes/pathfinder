@@ -6,7 +6,7 @@
  * replacing this file (or fetching into the same shapes) and nothing else.
  */
 
-import type { Resource, Skill, SkillId } from './types'
+import type { Resource, Skill, SkillId } from './types.js'
 
 export const SKILLS: Skill[] = [
   // foundations

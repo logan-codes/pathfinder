@@ -13,14 +13,14 @@
 
 import { randomUUID } from 'node:crypto'
 import { Router } from 'express'
-import { skillName } from '../../src/lib/catalog'
-import { buildPath, profileSkills } from '../../src/lib/engine'
-import { getGoal } from '../../src/lib/goals'
-import type { Level } from '../../src/lib/types'
-import { HttpError, parseBody, parseQuery } from '../http'
-import { assess, judge } from '../mastery'
-import { bankMeta, coverage, gradeAnswers, hasSkill, itemsForSkill } from '../quiz'
-import { QuizGradeRequest, QuizQuery } from '../schema'
+import { skillName } from '../../src/lib/catalog.js'
+import { buildPath, profileSkills } from '../../src/lib/engine.js'
+import { getGoal } from '../../src/lib/goals.js'
+import type { Level } from '../../src/lib/types.js'
+import { HttpError, parseBody, parseQuery } from '../http.js'
+import { assess, judge } from '../mastery.js'
+import { bankMeta, coverage, gradeAnswers, hasSkill, itemsForSkill } from '../quiz.js'
+import { QuizGradeRequest, QuizQuery } from '../schema.js'
 
 export const quizRouter = Router()
 

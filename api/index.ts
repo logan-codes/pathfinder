@@ -1,27 +1,21 @@
 /**
  * The Vercel entry point.
  *
- * There is no long-lived process to `listen()` on Vercel, so this file is
- * nothing but the app: `createApp()` returns an Express instance, an Express
- * instance is already a `(req, res)` function, and that is exactly the shape
- * of a Vercel Node function. No adapter, and no second copy of the wiring —
- * this is the same app `npm run server` starts locally, which is why
- * `server/index.ts` exports `createApp` and only listens when it is run
- * directly.
+ * There is no long-lived process to `listen()` here, so this file is nothing
+ * but the app: `createApp()` returns an Express instance, an Express instance
+ * is already a `(req, res)` function, and that is exactly the shape of a
+ * Vercel Node function. No adapter, and no second copy of the wiring — this
+ * is the same app `npm run server` starts locally, which is why
+ * `server/index.ts` exports `createApp` and only listens when run directly.
  *
- * It lives in `server/` rather than `api/` because it is source, not the
- * artifact. `npm run build:api` bundles it to `api/index.js`, and that
- * bundle is what Vercel deploys.
- *
- * Why bundle at all, when Vercel compiles TypeScript itself: it compiles
- * per file and copies import specifiers through verbatim. This codebase is
- * ESM (`"type": "module"`) and writes its relative imports without an
- * extension — `./config`, `../src/lib/catalog` — which every local runner
- * resolves and which Node's own ESM loader, correctly, does not. The
- * deployed function therefore died at its first import with
- * ERR_MODULE_NOT_FOUND. Bundling settles it once: esbuild inlines every
- * relative import, so at runtime there is one file and nothing left to
- * resolve. Packages stay external and are traced and installed as usual.
+ * Note the `.js` on the import, and on every relative import under `server/`
+ * and `src/lib/`. Vercel compiles TypeScript per file and copies specifiers
+ * through verbatim, so what Node's ESM loader receives is what was written.
+ * Node requires an explicit extension on a relative specifier; `tsx`, Vite
+ * and `tsc` are all willing to guess one, which is why an extensionless
+ * import works in every local runner and fails only once deployed. The `.js`
+ * names the compiled output and TypeScript maps it back to the `.ts` source,
+ * so one spelling satisfies both.
  *
  * Built once at module scope rather than per request. Vercel reuses a warm
  * instance across invocations, so the router tree and the config parse cost
@@ -49,6 +43,6 @@
  * `budget.ts` names, and the interface does not change.
  */
 
-import { createApp } from './index'
+import { createApp } from '../server/index.js'
 
 export default createApp()

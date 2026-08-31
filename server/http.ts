@@ -7,8 +7,8 @@
 import { createHash, timingSafeEqual } from 'node:crypto'
 import type { NextFunction, Request, RequestHandler, Response } from 'express'
 import type { ZodType } from 'zod'
-import { API_KEY, COOKIE_SECURE, SESSION_TTL_MS } from './config'
-import { refreshSession, resolveAccessToken, supabaseEnabled, type Caller } from './supabase'
+import { API_KEY, COOKIE_SECURE, SESSION_TTL_MS } from './config.js'
+import { refreshSession, resolveAccessToken, supabaseEnabled, type Caller } from './supabase.js'
 
 /** The signed-in learner, when there is one. Set by `attachSession`. */
 declare module 'express-serve-static-core' {

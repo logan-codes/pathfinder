@@ -12,8 +12,8 @@
  *   5. buildPath      — group into milestones, attach explanations
  */
 
-import { RESOURCES, getResource, skillName } from './catalog'
-import { getGoal } from './goals'
+import { RESOURCES, getResource, skillName } from './catalog.js'
+import { getGoal } from './goals.js'
 import {
   PACE_HOURS,
   type Goal,
@@ -25,7 +25,7 @@ import {
   type Reason,
   type Resource,
   type SkillId,
-} from './types'
+} from './types.js'
 
 const clampLevel = (n: number): Level => Math.max(0, Math.min(5, Math.round(n))) as Level
 

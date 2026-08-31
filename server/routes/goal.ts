@@ -7,10 +7,10 @@
  */
 
 import { Router } from 'express'
-import { getGoal } from '../../src/lib/goals'
-import { asyncHandler, parseBody } from '../http'
-import { extractGoal } from '../llm'
-import { GoalExtractRequest } from '../schema'
+import { getGoal } from '../../src/lib/goals.js'
+import { asyncHandler, parseBody } from '../http.js'
+import { extractGoal } from '../llm.js'
+import { GoalExtractRequest } from '../schema.js'
 
 export const goalRouter = Router()
 

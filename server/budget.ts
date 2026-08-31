@@ -16,7 +16,7 @@
  * counter in Redis; the interface does not change.
  */
 
-import { BUDGET_MAX_CALLS, BUDGET_MAX_TOKENS, BUDGET_MAX_USD, BUDGET_WINDOW_MS } from './config'
+import { BUDGET_MAX_CALLS, BUDGET_MAX_TOKENS, BUDGET_MAX_USD, BUDGET_WINDOW_MS } from './config.js'
 
 export interface UsageEntry {
   provider: string
