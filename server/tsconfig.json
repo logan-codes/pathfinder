@@ -19,5 +19,5 @@
     "noFallthroughCasesInSwitch": true,
     "exactOptionalPropertyTypes": false
   },
-  "include": ["**/*.ts", "../api/**/*.ts", "../scripts/**/*.ts", "../src/lib/**/*.ts"]
+  "include": ["**/*.ts", "../scripts/**/*.ts", "../src/lib/**/*.ts"]
 }
