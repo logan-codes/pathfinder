@@ -17,7 +17,9 @@
 import type { AssistantReply } from './assistant'
 import type { SkillGap } from './engine'
 import type {
+  ChatMessage,
   Goal,
+  ItemStatus,
   LearnerProfile,
   LearningPath,
   Level,
@@ -115,23 +117,32 @@ export interface AccountUser {
   createdAt: number
 }
 
-export interface AuthSession {
+/**
+ * Everything about a learner that survives a browser: what they assert
+ * (profile), what they have done (progress), and how they got there
+ * (conversation). Not just a display name.
+ */
+export interface LearnerState {
+  /** Null on an account that has never saved — the client should push, not adopt. */
+  profile: LearnerProfile | null
+  progress: Record<string, ItemStatus>
+  conversation: ChatMessage[]
+}
+
+export interface AuthSession extends LearnerState {
   /** Null when the project requires email confirmation and it is pending. */
   user: AccountUser | null
   pendingConfirmation: boolean
   message?: string
   expiresAt?: number
-  /** The profile saved against this account, or null on a new one. */
-  profile: LearnerProfile | null
 }
 
-export interface WhoAmI {
+export interface WhoAmI extends LearnerState {
   user: AccountUser | null
-  profile: LearnerProfile | null
   /** False when the server has no Supabase credentials — hide sign-in. */
   available: boolean
   registrationOpen: boolean
-  /** Closing an account needs a service-role key the server may not have. */
+  /** False when the server cannot delete accounts — hide the button. */
   canDeleteAccount: boolean
 }
 
@@ -170,16 +181,11 @@ export const postPasswordChange = (
 export const deleteAccount = (signal?: AbortSignal) =>
   request<{ ok: true }>('DELETE', '/auth/me', undefined, signal)
 
-export const getSavedProfile = (signal?: AbortSignal) =>
-  request<{ profile: LearnerProfile | null }>('GET', '/me/profile', undefined, signal)
+export const getSavedState = (signal?: AbortSignal) =>
+  request<LearnerState>('GET', '/me/state', undefined, signal)
 
-export const putSavedProfile = (profile: LearnerProfile, signal?: AbortSignal) =>
-  request<{ profile: LearnerProfile; savedAt: number }>(
-    'PUT',
-    '/me/profile',
-    { profile },
-    signal,
-  )
+export const putSavedState = (state: LearnerState, signal?: AbortSignal) =>
+  request<LearnerState & { savedAt: number }>('PUT', '/me/state', state, signal)
 
 // ---- catalogue ----------------------------------------------------------
 

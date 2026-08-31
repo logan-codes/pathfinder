@@ -33,10 +33,10 @@ import {
   postLogoutAll,
   postPasswordChange,
   postRegister,
-  putSavedProfile,
+  putSavedState,
   type AccountUser,
+  type LearnerState,
 } from '@/lib/api'
-import type { LearnerProfile } from '@/lib/types'
 import { useAppStore } from './useAppStore'
 
 export type AuthStatus = 'unknown' | 'signed-out' | 'signed-in'
@@ -76,8 +76,18 @@ interface AuthState {
   changePassword: (currentPassword: string, newPassword: string) => Promise<boolean>
   closeAccount: () => Promise<boolean>
   clearError: () => void
-  /** Called by the app store whenever the profile changes. Debounced. */
-  queueProfileSave: (profile: LearnerProfile) => void
+  /**
+   * Called whenever any part of the learner's state changes — profile,
+   * per-resource progress, or the conversation. Debounced, and a no-op when
+   * signed out.
+   */
+  queueStateSave: (state: LearnerState) => void
+}
+
+/** The whole learner, as the app store currently holds it. */
+function currentState(): LearnerState {
+  const app = useAppStore.getState()
+  return { profile: app.profile, progress: app.status, conversation: app.messages }
 }
 
 /**
@@ -130,8 +140,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         registrationOpen: me.registrationOpen,
         canDeleteAccount: me.canDeleteAccount,
       })
-      // A session that survived a reload brings its profile with it.
-      if (me.user && me.profile) useAppStore.getState().adoptProfile(me.profile)
+      // A session that survived a reload brings the whole learner with it —
+      // profile, progress and conversation.
+      if (me.user) useAppStore.getState().adoptState(me)
     } catch {
       // The server being down is not a signed-in/out question. Treat it as
       // signed out so the UI settles, and say nothing — the connection badge
@@ -147,10 +158,10 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       set({ status: 'signed-in', user: session.user, busy: false })
 
       if (session.profile) {
-        useAppStore.getState().adoptProfile(session.profile)
+        useAppStore.getState().adoptState(session)
       } else {
         // First sign-in on this account: keep what they were working on.
-        get().queueProfileSave(useAppStore.getState().profile)
+        get().queueStateSave(currentState())
       }
       return true
     } catch (error) {
@@ -180,9 +191,10 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       }
 
       set({ status: 'signed-in', user: session.user, busy: false })
-      // A new account has no profile, so it adopts the current one — which
-      // may already have a goal if they explored before signing up.
-      get().queueProfileSave(useAppStore.getState().profile)
+      // A new account has nothing stored, so it adopts the current state —
+      // which may already have a goal, some progress and a conversation if
+      // they explored before signing up.
+      get().queueStateSave(currentState())
       return true
     } catch (error) {
       set({ busy: false, error: describe(error) })
@@ -253,7 +265,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     }
   },
 
-  queueProfileSave: (profile) => {
+  queueStateSave: (state) => {
     if (get().status !== 'signed-in') return
 
     if (saveTimer) clearTimeout(saveTimer)
@@ -262,15 +274,15 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     saveTimer = setTimeout(() => {
       saveTimer = null
       set({ saving: true })
-      void putSavedProfile(profile, AbortSignal.timeout(AUTH_TIMEOUT_MS))
+      void putSavedState(state, AbortSignal.timeout(AUTH_TIMEOUT_MS))
         .then((result) => {
           if (token !== saveToken) return
           set({ saving: false, savedAt: result.savedAt })
         })
         .catch(() => {
           if (token !== saveToken) return
-          // A failed sync is not worth interrupting anyone over: the profile
-          // is still in localStorage and will go up on the next edit.
+          // A failed sync is not worth interrupting anyone over: the state is
+          // still in localStorage and will go up on the next edit.
           set({ saving: false })
         })
     }, SAVE_DEBOUNCE_MS)

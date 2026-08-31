@@ -12,9 +12,11 @@
  *            client carrying the caller's access token. Every query made
  *            through it is subject to row-level security, so a bug in a
  *            route here cannot read another learner's row.
- *   service  Bypasses RLS. Used for exactly one thing — deleting a user from
- *            auth.users, which is an admin operation by definition. It is
- *            never used to read or write profile data.
+ *   service  Bypasses RLS, and is therefore used for nothing. It exists only
+ *            because a future admin view would need it. Even account
+ *            deletion goes through a SECURITY DEFINER function instead — see
+ *            `deleteOwnAccount` — so this server can run with no
+ *            RLS-bypassing credential in its environment at all.
  *
  * When the environment has no Supabase credentials the module reports itself
  * unavailable and the auth routes answer 503. The rest of the API is
@@ -33,9 +35,10 @@ import { SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL } from './co
 export const PROFILES_TABLE = 'profiles'
 
 /**
- * Sign-in needs a URL and an anon key. The service role key is optional —
- * without it everything works except closing an account, which is the one
- * operation that has to reach past RLS.
+ * Sign-in needs a URL and an anon key, and that is the whole requirement.
+ * The service-role key is optional and currently unused: everything a
+ * learner can do, including deleting their account, runs under their own
+ * session with RLS in force.
  */
 export function supabaseEnabled(): boolean {
   return Boolean(SUPABASE_URL && SUPABASE_ANON_KEY)
@@ -197,40 +200,108 @@ export async function refreshSession(refreshToken: string): Promise<RefreshedSes
 // ---- the profiles table -------------------------------------------------
 
 /**
- * Read the caller's saved learner profile.
+ * Everything about a learner that survives a browser.
+ *
+ * Three parts, because they have three different lifetimes: the profile is
+ * what the learner asserts, the progress is what they have done, and the
+ * conversation is how they got there. The engine reads only the first, which
+ * is why it is the only one the schema validates strictly.
+ */
+export interface LearnerState {
+  profile: LearnerProfile | null
+  /** Record<ResourceId, 'todo' | 'active' | 'done'>. */
+  progress: Record<string, string>
+  /** Assistant transcript, newest last. */
+  conversation: unknown[]
+}
+
+export const EMPTY_STATE: LearnerState = { profile: null, progress: {}, conversation: [] }
+
+/**
+ * A transcript is the one thing here that grows without bound, so it is
+ * trimmed to the most recent slice on the way in. Old turns are not worth a
+ * row that keeps getting bigger for the rest of the account's life.
+ */
+const MAX_CONVERSATION = 200
+
+/**
+ * Read the caller's whole saved state.
  *
  * Read through a user-scoped client rather than the service key, so the RLS
  * policy is doing the authorisation and this function cannot be talked into
  * returning somebody else's row.
  */
-export async function readProfile(caller: Caller): Promise<unknown | null> {
+export async function readState(caller: Caller): Promise<LearnerState> {
   const { data, error } = await asUser(caller.accessToken)
     .from(PROFILES_TABLE)
-    .select('profile')
+    .select('profile, progress, conversation')
     .eq('id', caller.id)
     .maybeSingle()
 
   if (error) throw new Error(`could not read profile: ${error.message}`)
-  return (data?.profile as unknown) ?? null
+  if (!data) return EMPTY_STATE
+
+  // A row created by the signup trigger has `{}` for its profile, which is
+  // not a LearnerProfile — it is the absence of one, and the client needs to
+  // tell those apart to know whether to adopt or to push.
+  const profile = data.profile as LearnerProfile | null
+  const hasProfile = profile && typeof profile === 'object' && Object.keys(profile).length > 0
+
+  return {
+    profile: hasProfile ? profile : null,
+    progress: (data.progress as Record<string, string>) ?? {},
+    conversation: Array.isArray(data.conversation) ? data.conversation : [],
+  }
 }
 
 /**
  * Write it back. Upsert rather than update: the trigger in the migration
  * creates a row on sign-up, but a project restored from a backup, or a user
  * created straight in the dashboard, may not have one.
+ *
+ * The generated columns in migration 0002 — goal_id, pace, completed_count
+ * and the rest — are derived by Postgres from `profile` on this write. They
+ * are never set here, so they cannot drift from the document.
  */
-export async function writeProfile(caller: Caller, profile: LearnerProfile): Promise<void> {
+export async function writeState(caller: Caller, state: LearnerState): Promise<void> {
+  const conversation = state.conversation.slice(-MAX_CONVERSATION)
+
   const { error } = await asUser(caller.accessToken)
     .from(PROFILES_TABLE)
     .upsert(
       {
         id: caller.id,
-        display_name: profile.name,
-        profile,
+        display_name: state.profile?.name ?? caller.name,
+        profile: state.profile ?? {},
+        progress: state.progress,
+        conversation,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'id' },
     )
 
   if (error) throw new Error(`could not save profile: ${error.message}`)
+}
+
+/**
+ * Delete the caller's account and everything cascading from it.
+ *
+ * Goes through the `delete_own_account()` function in migration 0002 rather
+ * than the admin API, so this works on a server that holds no service-role
+ * key. `auth.uid()` inside the function decides the row, which means the
+ * only account anyone can delete is their own — the route is not trusted to
+ * pass the right id, because the route never passes one.
+ */
+export async function deleteOwnAccount(caller: Caller): Promise<void> {
+  const { error } = await asUser(caller.accessToken).rpc('delete_own_account')
+  if (!error) return
+
+  // A project that has 0001 applied but not 0002 has no such function. Say
+  // so, rather than reporting a generic failure the operator cannot act on.
+  if (/could not find the function|does not exist|PGRST202/i.test(error.message)) {
+    throw new Error(
+      'delete_own_account() is missing — run supabase/migrations/0002_learner_state.sql',
+    )
+  }
+  throw new Error(error.message)
 }

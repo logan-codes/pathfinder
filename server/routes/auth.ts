@@ -30,19 +30,19 @@ import {
   AccountPatchRequest,
   LoginRequest,
   PasswordChangeRequest,
-  ProfileSaveRequest,
   RegisterRequest,
+  StateSaveRequest,
 } from '../schema'
 import {
   anon,
   asUser,
   callerFrom,
+  deleteOwnAccount,
+  EMPTY_STATE,
   publicUser,
-  readProfile,
-  service,
-  supabaseAdminEnabled,
+  readState,
   supabaseEnabled,
-  writeProfile,
+  writeState,
 } from '../supabase'
 
 export const authRouter = Router()
@@ -132,7 +132,7 @@ authRouter.post(
         user: null,
         pendingConfirmation: true,
         message: 'Account created. Confirm your email address, then sign in.',
-        profile: null,
+        ...EMPTY_STATE,
       })
       return
     }
@@ -142,11 +142,14 @@ authRouter.post(
       refreshToken: data.session.refresh_token,
     })
 
+    // A new account has nothing stored yet by definition, so the empty state
+    // goes back rather than a read — and the client knows to push whatever it
+    // already has on screen up to the new row.
     res.status(201).json({
       user: publicUser(callerFrom(data.user, data.session.access_token)),
       pendingConfirmation: false,
       expiresAt: (data.session.expires_at ?? 0) * 1000,
-      profile: null,
+      ...EMPTY_STATE,
     })
   }),
 )
@@ -170,19 +173,18 @@ authRouter.post(
 
     // Handed back with the session so the client can adopt it in one round
     // trip instead of signing in and then asking what it just signed into.
-    let profile: unknown = null
+    let state = EMPTY_STATE
     try {
-      profile = await readProfile(caller)
+      state = await readState(caller)
     } catch {
       // A readable session with an unreadable profile is still a sign-in.
-      profile = null
     }
 
     res.json({
       user: publicUser(caller),
       pendingConfirmation: false,
       expiresAt: (data.session.expires_at ?? 0) * 1000,
-      profile,
+      ...state,
     })
   }),
 )
@@ -212,23 +214,28 @@ authRouter.post(
 authRouter.get(
   '/auth/me',
   asyncHandler(async (req, res) => {
-    let profile: unknown = null
+    let state = EMPTY_STATE
     if (req.user) {
       try {
-        profile = await readProfile(req.user)
+        state = await readState(req.user)
       } catch {
-        profile = null
+        // Signed in with an unreadable row is still signed in.
       }
     }
 
     res.json({
       user: req.user ? publicUser(req.user) : null,
-      profile,
+      ...state,
       /** Lets the UI hide sign-in entirely rather than offer a broken form. */
       available: supabaseEnabled(),
       registrationOpen: ALLOW_REGISTRATION,
-      /** Closing an account needs the service role key, which is optional. */
-      canDeleteAccount: supabaseAdminEnabled(),
+      /**
+       * Deletion runs through a SECURITY DEFINER function rather than the
+       * admin API, so it needs a session and migration 0002 — not a
+       * service-role key. Kept in the payload because the UI still has to
+       * know whether to offer the button.
+       */
+      canDeleteAccount: supabaseEnabled(),
     })
   }),
 )
@@ -295,56 +302,69 @@ authRouter.post(
   }),
 )
 
+/**
+ * Close the account.
+ *
+ * Goes through the `delete_own_account()` function from migration 0002,
+ * which runs SECURITY DEFINER and resolves the row from `auth.uid()`. Two
+ * things follow from that: it needs no service-role key, and this route
+ * never names a user id — so no bug here can delete the wrong account.
+ *
+ * The profile row, with the progress and the conversation in it, goes with
+ * the user by the cascade in migration 0001.
+ */
 authRouter.delete(
   '/auth/me',
   requireUser,
   asyncHandler(async (req, res) => {
-    if (!supabaseAdminEnabled()) {
-      throw new HttpError(
-        501,
-        'delete_unavailable',
-        'Closing an account needs SUPABASE_SERVICE_ROLE_KEY on the server.',
-      )
-    }
+    try {
+      await deleteOwnAccount(req.user!)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
 
-    // The one operation that has to bypass RLS: a user cannot delete
-    // themselves out of auth.users. The profile row goes with them, by the
-    // cascade in the migration.
-    const { error } = await service().auth.admin.deleteUser(req.user!.id)
-    if (error) throw new HttpError(500, 'delete_failed', error.message)
+      if (message.includes('0002_learner_state.sql')) {
+        throw new HttpError(501, 'delete_unavailable', message)
+      }
+      throw new HttpError(500, 'delete_failed', message)
+    }
 
     clearSessionCookies(res)
     res.json({ ok: true })
   }),
 )
 
-// ---- the saved profile --------------------------------------------------
+// ---- the saved learner state --------------------------------------------
 
 /**
- * The one piece of durable state an account buys: the same learner profile
- * in two browsers. Every planning route is still stateless and still works
- * signed out.
+ * What an account buys: the same learner in two browsers. Not just their
+ * name — the goal, the pace, the interests, the self-rated skills, the prior
+ * history, the per-resource progress, and the conversation that produced all
+ * of it.
+ *
+ * Every planning route is still stateless and still works signed out. This
+ * is the only durable state in the product.
  *
  * Both routes go through a client carrying the caller's access token, so the
  * RLS policies in `supabase/migrations` are the actual authorisation.
  */
 authRouter.get(
-  '/me/profile',
+  '/me/state',
   requireUser,
   asyncHandler(async (req, res) => {
-    res.json({ profile: await readProfile(req.user!) })
+    res.json(await readState(req.user!))
   }),
 )
 
 authRouter.put(
-  '/me/profile',
+  '/me/state',
   requireUser,
   asyncHandler(async (req, res) => {
-    // Validated with the same schema every planning route uses, so a stored
-    // profile can never be a shape the engine has not seen — and so the
-    // guardrail transforms in ProfileSchema run before anything is persisted.
-    const { profile } = parseBody(ProfileSaveRequest, req.body)
-    await writeProfile(req.user!, profile)
-    res.json({ profile, savedAt: Date.now() })
+    // `profile` is validated with the same schema every planning route uses,
+    // so stored state can never be a shape the engine has not seen — and so
+    // the guardrail transforms in ProfileSchema (normalisation, PII
+    // redaction) run before anything is persisted.
+    const state = parseBody(StateSaveRequest, req.body)
+    await writeState(req.user!, state)
+    res.json({ ...state, savedAt: Date.now() })
   }),
 )

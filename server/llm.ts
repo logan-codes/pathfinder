@@ -144,6 +144,19 @@ class GuardrailError extends Error {
 
 // ---- the one call path --------------------------------------------------
 
+/**
+ * Token ceiling for every edge. Generous on purpose, and not a length limit:
+ * how long an answer may actually be is decided by `validateOutput`, which
+ * counts sentences and characters in the finished prose and discards
+ * anything over.
+ *
+ * The headroom is for reasoning models. A model like gpt-oss spends output
+ * tokens thinking before it emits a visible word, so a budget sized for the
+ * answer alone gets consumed entirely by the reasoning and returns empty
+ * content — which looks exactly like a broken provider.
+ */
+const EDGE_MAX_TOKENS = 2400
+
 interface CallOptions {
   tag: string
   system: string
@@ -435,7 +448,7 @@ export async function extractGoal(
     const result = await callModel({
       tag: 'goal extraction',
       provider: options.provider,
-      maxTokens: 1000,
+      maxTokens: EDGE_MAX_TOKENS,
       system: [...EXTRACTION_RULES, '', fenceRule(fence)].join('\n'),
       human: [context, 'Learner statement:', fenced(fence, screening.text)]
         .filter(Boolean)
@@ -573,7 +586,7 @@ export async function narrate(input: NarrationInput): Promise<Narration> {
     const result = await callModel({
       tag: 'narration',
       provider: input.provider,
-      maxTokens: 800,
+      maxTokens: EDGE_MAX_TOKENS,
       system: NARRATION_RULES,
       human: [
         facts,
@@ -755,7 +768,7 @@ export async function converse(input: ConversationInput): Promise<Conversation> 
     const result = await callModel({
       tag: 'assistant reply',
       provider: input.provider,
-      maxTokens: 800,
+      maxTokens: EDGE_MAX_TOKENS,
       system: [...CONVERSATION_RULES, '', fenceRule(fence)].join('\n'),
       human: `FACTS\n${facts}\n\nThe learner asked:\n${fenced(fence, screening.text)}`,
     })

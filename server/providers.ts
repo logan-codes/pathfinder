@@ -129,8 +129,13 @@ export const PROVIDERS: Record<ProviderId, ProviderSpec> = {
     envKeys: ['GROQ_API_KEY'],
     packageName: '@langchain/groq',
     modelEnv: 'PATHFINDER_MODEL_GROQ',
-    defaultModel: 'llama-3.3-70b-versatile',
-    pricing: { input: 0.59, output: 0.79 },
+    // Groq retires hosted models fairly aggressively — `llama-3.3-70b-versatile`
+    // was the default here until it started 404ing. Whatever sits here must
+    // support tool calling, because `withStructuredOutput` uses it for goal
+    // extraction; `GET https://api.groq.com/openai/v1/models` lists what an
+    // account can currently reach.
+    defaultModel: 'openai/gpt-oss-120b',
+    pricing: { input: 0.15, output: 0.75 },
     create: async (options) => {
       const { ChatGroq } = await import('@langchain/groq')
       return new ChatGroq({
@@ -379,13 +384,25 @@ export async function checkProvider(id: ProviderId): Promise<ProviderCheck> {
   const model = modelFor(id)
 
   try {
-    const handle = await getModel(id, { maxTokens: 16, temperature: 0 })
+    // Generous for a one-word answer, because reasoning models spend their
+    // budget thinking before they emit any visible text. At 16 tokens a
+    // model like gpt-oss returns a perfectly healthy response with empty
+    // content, which read as a dead key rather than a tight ceiling.
+    const handle = await getModel(id, { maxTokens: 512, temperature: 0 })
     const reply = await handle.chat.invoke([new HumanMessage('Reply with the word: ready')], {
       signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
     })
 
+    // What this checks is whether the credential is accepted and the provider
+    // answers — not what it says. A reply carrying reasoning, tool calls or
+    // token usage but no prose is still a working key.
     const text = typeof reply.content === 'string' ? reply.content : JSON.stringify(reply.content)
-    if (!text.trim()) throw new Error('empty response')
+    const answered =
+      Boolean(text.trim()) ||
+      Boolean(reply.usage_metadata?.output_tokens) ||
+      Boolean(reply.additional_kwargs && Object.keys(reply.additional_kwargs).length > 0)
+
+    if (!answered) throw new Error('provider returned nothing at all')
 
     return { id, model, ok: true, latencyMs: Date.now() - startedAt, error: null }
   } catch (error) {

@@ -162,6 +162,7 @@ function AccountSection() {
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState('')
   const [done, setDone] = useState<string | null>(null)
 
   useEffect(() => {
@@ -239,8 +240,8 @@ function AccountSection() {
           </Row>
 
           <Row
-            label="Profile sync"
-            hint="Your learning profile is written to your account a moment after each change."
+            label="Synced to your account"
+            hint="Goal, experience, pace, interests, self-rated skills, completed history, per-resource progress and your assistant conversation — written a moment after each change, and restored on any browser you sign in to."
           >
             <span className="faint" style={{ fontSize: 'var(--t-sm)' }}>
               {saving ? (
@@ -329,25 +330,55 @@ function AccountSection() {
             label="Delete account"
             hint={
               canDelete
-                ? 'Deletes your account and the profile saved against it. This cannot be undone. The copy in this browser is left alone.'
-                : 'Unavailable: the server has no service-role key, which account deletion requires.'
+                ? 'Permanently deletes your account, your learning profile, your progress and your conversation. This cannot be undone. The copy in this browser is left alone, so the app keeps working signed out.'
+                : 'Unavailable on this server.'
             }
+            stacked={confirmingDelete}
           >
             {confirmingDelete ? (
-              <div className="row" style={{ gap: 'var(--s-2)' }}>
-                <button
-                  type="button"
-                  className="btn btn--danger"
-                  disabled={busy}
-                  onClick={async () => {
-                    if (await closeAccount()) setConfirmingDelete(false)
-                  }}
-                >
-                  Yes, delete it
-                </button>
-                <button type="button" className="btn" onClick={() => setConfirmingDelete(false)}>
-                  Cancel
-                </button>
+              <div className="stack stack--3">
+                <label className="auth__field">
+                  <span className="label">
+                    Type your email to confirm
+                  </span>
+                  <input
+                    className="input"
+                    style={{ maxWidth: 280 }}
+                    autoComplete="off"
+                    placeholder={user.email}
+                    value={deleteConfirm}
+                    onChange={(e) => setDeleteConfirm(e.target.value)}
+                  />
+                </label>
+                <div className="row" style={{ gap: 'var(--s-2)' }}>
+                  <button
+                    type="button"
+                    className="btn btn--danger"
+                    // A destructive, irreversible action deserves a
+                    // deliberate act rather than a second click in the same
+                    // place as the first.
+                    disabled={busy || deleteConfirm.trim().toLowerCase() !== user.email}
+                    onClick={async () => {
+                      if (await closeAccount()) {
+                        setConfirmingDelete(false)
+                        setDeleteConfirm('')
+                      }
+                    }}
+                  >
+                    {busy && <Loader2 size={14} className="spin" />}
+                    Delete my account permanently
+                  </button>
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => {
+                      setConfirmingDelete(false)
+                      setDeleteConfirm('')
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
             ) : (
               <button

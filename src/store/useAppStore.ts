@@ -180,6 +180,17 @@ interface AppState {
    * because it must not be echoed straight back to the server.
    */
   adoptProfile: (profile: LearnerProfile) => void
+  /**
+   * Adopt a whole saved learner: the profile, the per-resource progress and
+   * the conversation. Each part is skipped when the account has nothing
+   * stored for it, so signing in on a fresh account never blanks what is
+   * already on screen.
+   */
+  adoptState: (state: {
+    profile: LearnerProfile | null
+    progress?: Record<ResourceId, ItemStatus>
+    conversation?: ChatMessage[]
+  }) => void
   toggleInterest: (tag: string) => void
   toggleCompleted: (id: ResourceId) => void
   setSelfRated: (skillId: SkillId, level: Level) => void
@@ -282,6 +293,18 @@ export const useAppStore = create<AppState>()(
           // Defaults for anything an older stored profile predates, so a
           // profile saved before a field existed cannot arrive undefined.
           set({ profile: { ...DEFAULT_PROFILE, ...profile } })
+          get().regenerate()
+        },
+
+        adoptState: ({ profile, progress, conversation }) => {
+          set((s) => ({
+            profile: profile ? { ...DEFAULT_PROFILE, ...profile } : s.profile,
+            status: progress ?? s.status,
+            // An account that has never held a conversation should not wipe
+            // the greeting the app opens with.
+            messages:
+              conversation && conversation.length > 0 ? conversation : s.messages,
+          }))
           get().regenerate()
         },
 

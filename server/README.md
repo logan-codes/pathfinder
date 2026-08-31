@@ -292,21 +292,48 @@ layer are all still this process, still deterministic, and still work with no
 Supabase configured at all.
 
 **Sign-in is optional and the app is built that way.** An account buys one
-thing: the same learner profile in two browsers. Every planning route is
-stateless and answers signed out, the engine also runs in the browser, and
-the login screen's "Continue without an account" is a first-class choice
-rather than a grudging link. With no `SUPABASE_URL` set, the auth routes
-answer 503, the UI hides sign-in, and everything else is untouched.
+thing: the same learner in two browsers. Every planning route is stateless
+and answers signed out, the engine also runs in the browser, and the login
+screen's "Continue without an account" is a first-class choice rather than a
+grudging link. With no `SUPABASE_URL` set, the auth routes answer 503, the UI
+hides sign-in, and everything else is untouched.
+
+### What is stored
+
+The whole learner, not a display name. One row in `profiles`, three columns
+that matter:
+
+| Column | Holds |
+|---|---|
+| `profile` (jsonb) | The `LearnerProfile`: goal, goal statement, experience, weekly pace, interests, self-rated skill levels, completed history |
+| `progress` (jsonb) | `Record<ResourceId, 'todo' \| 'active' \| 'done'>` — what they have actually started and finished, as opposed to the prior history they declared |
+| `conversation` (jsonb) | The assistant transcript, trimmed to the most recent 200 turns server-side |
+
+Alongside those, migration 0002 adds **generated columns** — `goal_id`,
+`experience`, `pace`, `goal_statement`, `completed_count`, `interest_count`,
+`rated_skill_count`. They are derived by Postgres from `profile` on every
+write, so they cannot drift the way a denormalised copy eventually does. They
+exist so the dashboard is legible and so "how many learners per track" is one
+indexed query; the engine still reads the whole document and never these.
+
+`profile` is validated by the same `ProfileSchema` every planning route uses,
+so stored state can never be a shape the engine has not seen, and the
+guardrail transforms (normalisation, PII redaction) run before anything is
+persisted. `progress` and `conversation` are checked for size and rough shape
+only — nothing computes on them, and over-validating a transcript is how you
+lose someone's history to a schema change.
 
 ### Setup
 
 1. Create a project at [supabase.com/dashboard](https://supabase.com/dashboard)
-2. **Settings → API**: copy the Project URL and the anon key into `.env` as
-   `SUPABASE_URL` and `SUPABASE_ANON_KEY`. The service-role key is optional —
-   it only unlocks account deletion, which has to bypass RLS.
-3. Run [`supabase/migrations/0001_profiles.sql`](../supabase/migrations/0001_profiles.sql)
-   in the SQL editor (or `supabase db push` with the project linked). It is
-   re-runnable.
+2. **Settings → API Keys**: copy the Project URL into `SUPABASE_URL` and the
+   **publishable** key (`sb_publishable_…`) into `SUPABASE_ANON_KEY`. Not the
+   secret key — that one bypasses RLS, which is the thing actually protecting
+   the data. `SUPABASE_SERVICE_ROLE_KEY` is optional and currently unused.
+3. Run both migrations in the SQL editor, in order (or `supabase db push`
+   with the project linked). Both are re-runnable.
+   - [`0001_profiles.sql`](../supabase/migrations/0001_profiles.sql) — the table, its RLS policies, the signup trigger
+   - [`0002_learner_state.sql`](../supabase/migrations/0002_learner_state.sql) — progress, conversation, the generated columns, and `delete_own_account()`
 4. **Authentication → Providers → Email**: turn **off** "Confirm email" for a
    demo. Left on, sign-ups sit unconfirmed until someone clicks a link in
    their inbox — the API handles that case and returns `202` with
@@ -330,9 +357,14 @@ actually protects the data — but not shipping it is still strictly better.
 Profile reads and writes go through a client carrying the caller's access
 token, so `auth.uid()` resolves inside the database and the policies in the
 migration do the deciding. A bug in `routes/auth.ts` cannot return someone
-else's row, because the route is not what grants access. The service-role
-key — the one that *does* bypass RLS — is used for exactly one operation,
-deleting a user from `auth.users`, and never touches profile data.
+else's row, because the route is not what grants access.
+
+**The server holds no RLS-bypassing credential at all.** Even account
+deletion — the usual reason to reach for a service-role key — goes through
+`delete_own_account()`, a `SECURITY DEFINER` function that resolves the row
+from `auth.uid()`. The route never names a user id, so no bug in it can
+delete the wrong account, and `EXECUTE` is granted to `authenticated` only.
+`SUPABASE_SERVICE_ROLE_KEY` can stay unset.
 
 ### Routes
 
@@ -344,8 +376,8 @@ deleting a user from `auth.users`, and never touches profile data.
 | `GET /api/auth/me` | `200` with `user: null` when signed out — not an error |
 | `PATCH /api/auth/me` | Name and email; an email change needs confirming |
 | `POST /api/auth/password` | Re-authenticates first, then ends every session |
-| `DELETE /api/auth/me` | Needs the service-role key |
-| `GET/PUT /api/me/profile` | The profile, validated by the same `ProfileSchema` every planning route uses |
+| `DELETE /api/auth/me` | Via `delete_own_account()`; needs a session and migration 0002, not a service-role key |
+| `GET/PUT /api/me/state` | The whole learner — profile, progress, conversation |
 
 Sign-in sits **ahead** of the `PATHFINDER_API_KEY` door — you cannot present
 a credential you have not been issued yet — behind a much tighter limiter

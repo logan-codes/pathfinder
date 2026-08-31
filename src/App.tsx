@@ -40,10 +40,12 @@ export default function App() {
   const regenerate = useAppStore((s) => s.regenerate)
   const checkConnection = useAppStore((s) => s.checkConnection)
   const profile = useAppStore((s) => s.profile)
+  const progress = useAppStore((s) => s.status)
+  const messages = useAppStore((s) => s.messages)
 
   const refreshAuth = useAuthStore((s) => s.refresh)
   const authStatus = useAuthStore((s) => s.status)
-  const queueProfileSave = useAuthStore((s) => s.queueProfileSave)
+  const queueStateSave = useAuthStore((s) => s.queueStateSave)
 
   // Build an initial path if the seeded profile already has a goal, find out
   // whether there is an API to build it with, and ask who is signed in. None
@@ -60,18 +62,19 @@ export default function App() {
   }, [pathname])
 
   /**
-   * Push profile edits up to the account. Debounced inside the auth store,
-   * and a no-op when signed out — which is why this can be a plain effect on
-   * the profile rather than something threaded through every action that
-   * touches it.
+   * Push the whole learner up to the account: what they assert (profile),
+   * what they have done (progress) and how they got there (conversation).
+   * Debounced inside the auth store, and a no-op when signed out — which is
+   * why this can be one plain effect rather than something threaded through
+   * every action that touches any of the three.
    *
    * Deliberately keyed on `authStatus` too, so signing in flushes whatever is
    * currently on screen instead of waiting for the next keystroke.
    */
   useEffect(() => {
     if (authStatus !== 'signed-in') return
-    queueProfileSave(profile)
-  }, [profile, authStatus, queueProfileSave])
+    queueStateSave({ profile, progress, conversation: messages })
+  }, [profile, progress, messages, authStatus, queueStateSave])
 
   const toggleCollapsed = useCallback(() => {
     setCollapsed((previous) => {

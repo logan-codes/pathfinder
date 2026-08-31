@@ -192,6 +192,41 @@ export const PasswordChangeRequest = z.object({
   newPassword: password,
 })
 
-export const ProfileSaveRequest = z.object({
+/**
+ * Everything about a learner that is worth carrying to another browser.
+ *
+ * `profile` is validated strictly, because the engine reads it and a bad
+ * shape there produces a bad plan. `progress` and `conversation` are checked
+ * for size and rough shape only — nothing computes on them, they are replayed
+ * into the UI, and over-validating a transcript is how you lose someone's
+ * history to a schema change.
+ */
+export const StateSaveRequest = z.object({
   profile: ProfileSchema,
+
+  /** Record<ResourceId, 'todo' | 'active' | 'done'>. */
+  progress: z
+    .record(z.string().max(120), z.enum(['todo', 'active', 'done']))
+    .default({}),
+
+  /**
+   * The assistant transcript. Trimmed again server-side before it is stored;
+   * this bound is only here so a runaway client cannot make us parse a
+   * megabyte before we trim it.
+   */
+  conversation: z
+    .array(
+      z
+        .object({
+          id: z.string().max(64),
+          role: z.enum(['user', 'assistant']),
+          text: z.string().max(4000),
+          at: z.number(),
+        })
+        // Attachments and suggestions ride along untouched — they are the
+        // UI's business, and a new attachment kind must not fail a save.
+        .passthrough(),
+    )
+    .max(400)
+    .default([]),
 })
