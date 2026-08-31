@@ -105,7 +105,7 @@ async function main(): Promise<void> {
     assert(health.quiz.items > 0, 'the item bank is empty')
     assert(health.quiz.unreviewed.length === 0, 'the bank contains unreviewed items')
     llmEnabled = Boolean(health.llm.enabled)
-    return `${health.catalog.resources} resources, ${health.quiz.items} quiz items, model ${llmEnabled ? health.llm.model : 'off'}`
+    return `${health.catalog.resources} resources, ${health.quiz.items} quiz items, providers ${llmEnabled ? health.llm.chain.join(' -> ') : 'off'}`
   })
 
   await check('GET /api lists its own routes', async () => {

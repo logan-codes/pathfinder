@@ -395,7 +395,14 @@ export const useAppStore = create<AppState>()(
         checkConnection: async () => {
           try {
             const health = await getHealth(AbortSignal.timeout(HEALTH_TIMEOUT_MS))
-            markOnline(health.llm.enabled ? health.llm.model : null)
+            // The server can front several providers, so the label names the
+            // one that would answer next rather than a single configured
+            // model. An unauthenticated health check omits `llm` entirely.
+            const chain = health.llm?.chain ?? []
+            const provider = health.llm?.providers.find((p) => p.id === chain[0])
+            markOnline(
+              health.llm?.enabled && provider ? `${provider.id}/${provider.model}` : null,
+            )
           } catch (error) {
             markOffline(error)
           }
@@ -426,11 +433,9 @@ export const useAppStore = create<AppState>()(
           let via: ChatMessage['via']
 
           try {
-            const result = await postChat(
-              trimmed,
-              profile,
-              AbortSignal.timeout(CHAT_TIMEOUT_MS),
-            )
+            const result = await postChat(trimmed, profile, {
+              signal: AbortSignal.timeout(CHAT_TIMEOUT_MS),
+            })
             if (token !== chatToken) return
             reply = result.reply
             // The server says who wrote the words: the model, or its own

@@ -4,8 +4,10 @@
  * Routes throw; nothing here is allowed to leak a stack trace to a client.
  */
 
+import { createHash, timingSafeEqual } from 'node:crypto'
 import type { NextFunction, Request, RequestHandler, Response } from 'express'
 import type { ZodType } from 'zod'
+import { API_KEY } from './config'
 
 export interface ErrorBody {
   error: {
@@ -98,6 +100,53 @@ export function rateLimit(options: { limit: number; windowMs: number }): Request
 
     next()
   }
+}
+
+/**
+ * Optional shared-secret auth, on when PATHFINDER_API_KEY is set.
+ *
+ * Not a user system and not pretending to be one — it is the difference
+ * between "anyone who finds the hostname can spend the key" and "you need
+ * the secret we handed out". Comparison runs over digests so it is both
+ * constant-time and length-independent.
+ */
+export function requireApiKey(): RequestHandler {
+  if (!API_KEY) return (_req, _res, next) => next()
+
+  const expected = createHash('sha256').update(API_KEY).digest()
+
+  return (req, _res, next) => {
+    const header = req.get('authorization')
+    const bearer = header?.startsWith('Bearer ') ? header.slice(7).trim() : null
+    const presented = bearer || req.get('x-api-key')?.trim()
+
+    if (!presented) {
+      next(new HttpError(401, 'unauthorized', 'Missing API key. Send Authorization: Bearer <key>.'))
+      return
+    }
+
+    const actual = createHash('sha256').update(presented).digest()
+    if (!timingSafeEqual(expected, actual)) {
+      next(new HttpError(403, 'forbidden', 'That API key is not valid.'))
+      return
+    }
+
+    next()
+  }
+}
+
+/** Whether a request carried the right key. Lets a route answer in less detail. */
+export function isAuthenticated(req: Request): boolean {
+  if (!API_KEY) return true
+
+  const header = req.get('authorization')
+  const bearer = header?.startsWith('Bearer ') ? header.slice(7).trim() : null
+  const presented = bearer || req.get('x-api-key')?.trim()
+  if (!presented) return false
+
+  const expected = createHash('sha256').update(API_KEY).digest()
+  const actual = createHash('sha256').update(presented).digest()
+  return timingSafeEqual(expected, actual)
 }
 
 export function notFound(req: Request, _res: Response, next: NextFunction) {

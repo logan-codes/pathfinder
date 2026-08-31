@@ -56,6 +56,7 @@ export function ProfileRoute() {
             <Field label="Name">
               <input
                 className="input"
+                maxLength={120}
                 value={profile.name}
                 onChange={(e) => updateProfile({ name: e.target.value })}
               />

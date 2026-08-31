@@ -17,8 +17,8 @@ export const goalRouter = Router()
 goalRouter.post(
   '/goal/extract',
   asyncHandler(async (req, res) => {
-    const { text, profile } = parseBody(GoalExtractRequest, req.body)
-    const extraction = await extractGoal(text, profile)
+    const { text, profile, provider } = parseBody(GoalExtractRequest, req.body)
+    const extraction = await extractGoal(text, profile, { provider })
 
     res.json({
       ...extraction,

@@ -7,7 +7,8 @@
  */
 
 import { Router } from 'express'
-import { LLM_ENABLED, LLM_MODE, MODEL } from '../config'
+import { LLM_MODE } from '../config'
+import { llmEnabled, modelFor, resolveChain } from '../providers'
 
 export const rootRouter = Router()
 
@@ -28,6 +29,8 @@ const ENDPOINTS: Endpoint[] = [
   { method: 'GET', path: '/api/quiz', summary: 'Item bank metadata and coverage' },
   { method: 'GET', path: '/api/quiz/:skillId', summary: 'Questions for a skill, without the answers' },
   { method: 'POST', path: '/api/quiz/grade', summary: 'Grade a round, update mastery, re-plan' },
+  { method: 'GET', path: '/api/providers', summary: 'Registered providers, which keys are present, failover order' },
+  { method: 'POST', path: '/api/providers/check', summary: 'Live-check every configured key', model: true },
   { method: 'POST', path: '/api/goal/extract', summary: 'Free text to a known goal id', model: true },
   { method: 'POST', path: '/api/chat', summary: 'Assistant turn, plus the recomputed path', model: true },
   { method: 'POST', path: '/api/narrate', summary: 'Prose for an already-computed explanation', model: true },
@@ -37,17 +40,21 @@ const EXAMPLES = [
   'curl http://127.0.0.1:8787/api/health',
   `curl -X POST http://127.0.0.1:8787/api/path -H 'content-type: application/json' -d '{"profile":{"goalId":"ml-engineer"}}'`,
   'curl "http://127.0.0.1:8787/api/quiz/python?count=3"',
+  'curl -X POST http://127.0.0.1:8787/api/providers/check',
+  `curl -X POST http://127.0.0.1:8787/api/chat -H 'content-type: application/json' -d '{"text":"i want to be an ml engineer","profile":{},"provider":"openai"}'`,
 ]
 
 function describeModel(): string {
-  return LLM_ENABLED
-    ? `${MODEL}, at two edges (mode: ${LLM_MODE})`
-    : `off (mode: ${LLM_MODE}) — every route answers deterministically`
+  if (!llmEnabled()) {
+    return `off (mode: ${LLM_MODE}) — every route answers deterministically`
+  }
+  const chain = resolveChain()
+  return `${chain.map((id) => `${id}/${modelFor(id)}`).join(' → ')} (mode: ${LLM_MODE})`
 }
 
 // Deliberately plain, and consistent with the app's rules: structure drawn
 // with 1px lines, no shadows, no gradients, one accent.
-function page(): string {
+function page(nonce: string): string {
   const rows = ENDPOINTS.map((endpoint) => {
     const href =
       endpoint.method === 'GET' && !endpoint.path.includes(':')
@@ -66,7 +73,7 @@ function page(): string {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Pathfinder API</title>
-<style>
+<style nonce="${nonce}">
   :root {
     color-scheme: light dark;
     --bg: #ffffff; --fg: #16181d; --muted: #6b7280; --line: #e3e5e9; --accent: #2f6feb;
@@ -128,6 +135,7 @@ rootRouter.get('/', (_req, res) => {
     endpoints: ENDPOINTS,
     docs: 'server/README.md',
   }
+  const nonce = String(res.locals.cspNonce ?? '')
 
   // A browser asks for text/html at q=1.0 and gets the page. curl and fetch
   // send `*/*`, which matches everything equally — and `res.format` breaks
@@ -135,7 +143,7 @@ rootRouter.get('/', (_req, res) => {
   // be handed HTML.
   res.format({
     json: () => res.json(body),
-    html: () => res.type('html').send(page()),
+    html: () => res.type('html').send(page(nonce)),
     default: () => res.json(body),
   })
 })

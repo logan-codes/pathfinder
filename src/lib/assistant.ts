@@ -47,6 +47,8 @@ export type AssistantIntent =
   | 'assess'
   | 'ack'
   | 'unmatched'
+  /** Input screening answered instead of the rules. See `server/guard.ts`. */
+  | 'screened'
 
 export interface AssistantReply {
   text: string

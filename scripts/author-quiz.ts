@@ -21,7 +21,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod'
 import { z } from 'zod'
 import { SKILL_BY_ID, skillName } from '../src/lib/catalog'
-import { MODEL } from '../server/config'
+import { modelFor } from '../server/providers'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const BANK_PATH = path.join(here, '..', 'data', 'quiz-bank.json')
@@ -116,7 +116,7 @@ async function generate(
       : ''
 
   const response = await client.beta.messages.parse({
-    model: MODEL,
+    model: modelFor('anthropic'),
     max_tokens: 16000,
     system: SYSTEM,
     output_config: {

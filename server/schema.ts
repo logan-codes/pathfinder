@@ -10,6 +10,7 @@
 
 import { z } from 'zod'
 import type { LearnerProfile, Level } from '../src/lib/types'
+import { safeField } from './guard'
 
 /** Fails compilation when the condition is false. */
 type Assert<T extends true> = T
@@ -28,15 +29,28 @@ export type _LevelConforms = Assert<z.infer<typeof LevelSchema> extends Level ? 
 /**
  * Every field has a default, so a caller can post `{}` and get a coherent
  * cold-start learner rather than a validation error.
+ *
+ * The three free-text fields run through `safeField` here rather than at
+ * each use site. They are user-controlled, they are persisted, and two of
+ * them reach a prompt inside the fact sheet — so the boundary is the one
+ * place worth normalising and redacting them.
  */
 export const ProfileSchema = z.object({
-  name: z.string().max(120).default('Learner'),
+  name: z.string().max(120).default('Learner').transform((value) => safeField(value, 120)),
   experience: z.enum(['beginner', 'some', 'experienced']).default('some'),
-  interests: z.array(z.string().max(60)).max(50).default([]),
+  interests: z
+    .array(z.string().max(60))
+    .max(50)
+    .default([])
+    .transform((values) => values.map((value) => safeField(value, 60))),
   completed: z.array(z.string().max(120)).max(500).default([]),
   selfRated: z.record(z.string().max(120), LevelSchema).default({}),
   goalId: z.string().max(120).nullable().default(null),
-  goalStatement: z.string().max(2000).default(''),
+  goalStatement: z
+    .string()
+    .max(2000)
+    .default('')
+    .transform((value) => safeField(value, 2000)),
   pace: z.enum(['light', 'steady', 'intense']).default('steady'),
 })
 
@@ -44,6 +58,14 @@ export type ProfileInput = z.infer<typeof ProfileSchema>
 export type _ProfileConforms = Assert<ProfileInput extends LearnerProfile ? true : false>
 
 const freeText = z.string().trim().min(1, 'Say something.').max(2000)
+
+/**
+ * Which vendor should answer this one call. Validated as a bare string here
+ * and resolved against the registry in `providers.ts`, so an unknown or
+ * unconfigured name quietly falls back to the normal chain rather than
+ * failing a request. Ignored entirely when overrides are turned off.
+ */
+const providerChoice = z.string().max(40).optional()
 
 export const PathRequest = z.object({
   profile: ProfileSchema,
@@ -53,11 +75,13 @@ export const GoalExtractRequest = z.object({
   text: freeText,
   /** Optional: lets the extractor mention what the learner already has. */
   profile: ProfileSchema.optional(),
+  provider: providerChoice,
 })
 
 export const ChatRequest = z.object({
   text: freeText,
   profile: ProfileSchema,
+  provider: providerChoice,
 })
 
 export const NarrateRequest = z.object({
@@ -65,6 +89,7 @@ export const NarrateRequest = z.object({
   resourceId: z.string().min(1).max(120),
   /** `brief` is one paragraph; `coaching` adds a second-person nudge. */
   style: z.enum(['brief', 'coaching']).default('brief'),
+  provider: providerChoice,
 })
 
 export const MasterySnapshot = z.object({

@@ -134,7 +134,34 @@ export const postProfileSkills = (profile: LearnerProfile, signal?: AbortSignal)
     signal,
   )
 
-// ---- the two LLM edges --------------------------------------------------
+// ---- the three LLM edges ------------------------------------------------
+
+/**
+ * Options for the routes that may call a model. `provider` names the vendor
+ * for one call ("anthropic", "openai", "google", "groq", "mistral"); the
+ * server ignores it if that provider has no key, or if per-request overrides
+ * are turned off, and answers from the normal chain instead.
+ */
+export interface EdgeOptions {
+  provider?: string | null
+  signal?: AbortSignal
+}
+
+/** What the server's input screening did with a message. */
+export interface ScreeningReport {
+  /** `deterministic` and `safe-response` both mean no model was consulted. */
+  action: 'allow' | 'deterministic' | 'safe-response'
+  /** Machine-readable reasons, e.g. `injection:override-instructions`. */
+  flags: string[]
+  /** Categories of personal data removed before the text went anywhere. */
+  redacted: string[]
+}
+
+/** An output check that a model answer failed, and was discarded for. */
+export interface Violation {
+  id: string
+  detail: string
+}
 
 export interface GoalExtraction {
   goalId: string | null
@@ -142,17 +169,26 @@ export interface GoalExtraction {
   restatement: string | null
   signals: string[]
   weeklyHours: number | null
-  /** `keywords` means the model was unavailable, unsure, or overruled. */
+  /** `keywords` means the model was unavailable, unsure, screened, or overruled. */
   source: 'llm' | 'keywords'
   degraded: boolean
   goal: Goal | null
+  provider: string | null
+  model: string | null
+  screening: ScreeningReport
 }
 
 export const postGoalExtract = (
   text: string,
   profile?: LearnerProfile,
-  signal?: AbortSignal,
-) => request<GoalExtraction>('POST', '/goal/extract', { text, profile }, signal)
+  options: EdgeOptions = {},
+) =>
+  request<GoalExtraction>(
+    'POST',
+    '/goal/extract',
+    { text, profile, provider: options.provider ?? undefined },
+    options.signal,
+  )
 
 export interface ChatResponse {
   reply: AssistantReply
@@ -160,16 +196,27 @@ export interface ChatResponse {
   answeredBy: 'model' | 'rules'
   /** The rule-based answer the model was asked to rephrase. */
   deterministicText: string
+  /** Which vendor wrote the wording, when one did. */
+  answeredByProvider: string | null
+  answeredByModel: string | null
+  /** Non-empty when a model answer was discarded by an output check. */
+  violations: Violation[]
   /** Non-null only when the model was asked to resolve a goal. */
   extraction: Omit<GoalExtraction, 'goal'> | null
   /** The profile with the reply's effects already applied. */
   profile: LearnerProfile
   profileChanged: boolean
   path: LearningPath | null
+  screening: ScreeningReport
 }
 
-export const postChat = (text: string, profile: LearnerProfile, signal?: AbortSignal) =>
-  request<ChatResponse>('POST', '/chat', { text, profile }, signal)
+export const postChat = (text: string, profile: LearnerProfile, options: EdgeOptions = {}) =>
+  request<ChatResponse>(
+    'POST',
+    '/chat',
+    { text, profile, provider: options.provider ?? undefined },
+    options.signal,
+  )
 
 export interface NarrationResponse {
   resourceId: string
@@ -177,6 +224,10 @@ export interface NarrationResponse {
   /** `template` means the deterministic explanation, verbatim. */
   source: 'llm' | 'template'
   degraded: boolean
+  provider: string | null
+  model: string | null
+  /** Non-empty when the prose was discarded for failing an output check. */
+  violations: Violation[]
   reasons: Reason[]
   closes: PathItem['closes']
 }
@@ -185,8 +236,14 @@ export const postNarrate = (
   profile: LearnerProfile,
   resourceId: string,
   style: 'brief' | 'coaching' = 'brief',
-  signal?: AbortSignal,
-) => request<NarrationResponse>('POST', '/narrate', { profile, resourceId, style }, signal)
+  options: EdgeOptions = {},
+) =>
+  request<NarrationResponse>(
+    'POST',
+    '/narrate',
+    { profile, resourceId, style, provider: options.provider ?? undefined },
+    options.signal,
+  )
 
 // ---- assessment ---------------------------------------------------------
 
@@ -290,22 +347,67 @@ export const postQuizGrade = (
 
 // ---- diagnostics --------------------------------------------------------
 
+/** One registered provider, whether or not it has a key. */
+export interface ProviderStatus {
+  id: string
+  label: string
+  /** A key is present in the environment for this provider. */
+  configured: boolean
+  /** Which env var supplied it. Never the value. */
+  keySource: string | null
+  /** Eight hex characters of SHA-256, to confirm which key is loaded. */
+  keyFingerprint: string | null
+  model: string
+  packageName: string
+  unavailableReason: string | null
+  pricingPerMTok: { input: number; output: number }
+  envKeys: string[]
+}
+
+export interface BudgetReport {
+  windowMs: number
+  windowStartedAt: number
+  limits: { calls: number | null; tokens: number | null; usd: number | null }
+  used: { calls: number; inputTokens: number; outputTokens: number; usd: number }
+  remaining: { calls: number | null; tokens: number | null; usd: number | null }
+  byProvider: Record<
+    string,
+    { calls: number; inputTokens: number; outputTokens: number; usd: number }
+  >
+}
+
 export interface HealthResponse {
   ok: boolean
   uptimeSeconds: number
-  llm: {
+  /** The only field present when auth is on and the caller did not send a key. */
+  authRequired?: boolean
+  auth?: { required: boolean }
+  llm?: {
     enabled: boolean
     mode: 'auto' | 'on' | 'off'
-    model: string
     calls: number
     fallbacks: number
+    guardrailBlocks: number
+    screened: number
     lastError: string | null
     lastErrorAt: number | null
+    lastViolations: Violation[]
+    byProvider: Record<string, { calls: number; failures: number; lastError: string | null }>
     timeoutMs: number
-    refusalFallbacks: boolean
+    /** Providers that would be tried, in order, for the next call. */
+    chain: string[]
+    providers: ProviderStatus[]
   }
-  catalog: { skills: number; resources: number; goals: number }
-  quiz: {
+  budget?: BudgetReport
+  guardrails?: {
+    injectionPolicy: 'deterministic' | 'sanitize'
+    rateLimitPerWindow: number
+    screened: number
+    outputsRejected: number
+    lastViolations: Violation[]
+  }
+  catalog?: { skills: number; resources: number; goals: number }
+  quiz?: {
     version: number
     items: number
     skills: string[]
@@ -315,3 +417,43 @@ export interface HealthResponse {
 
 export const getHealth = (signal?: AbortSignal) =>
   request<HealthResponse>('GET', '/health', undefined, signal)
+
+// ---- providers ----------------------------------------------------------
+
+export interface ProvidersResponse {
+  enabled: boolean
+  mode: 'auto' | 'on' | 'off'
+  /** Failover order given the keys present right now. */
+  chain: string[]
+  failover: boolean
+  perRequestOverride: boolean
+  providers: ProviderStatus[]
+  budget: BudgetReport
+}
+
+/** Configuration only. Calls nobody, costs nothing. */
+export const getProviders = (signal?: AbortSignal) =>
+  request<ProvidersResponse>('GET', '/providers', undefined, signal)
+
+export interface ProviderCheck {
+  id: string
+  model: string | null
+  ok: boolean
+  latencyMs: number
+  error: string | null
+}
+
+export interface ProviderCheckResponse {
+  checked: ProviderCheck[]
+  summary: { total: number; ok: number; failed: number }
+  note?: string
+  budget: BudgetReport
+}
+
+/**
+ * One real, minimal call per configured provider. This is the difference
+ * between a key being set and a key working — omit `providers` to check
+ * every one that has a key.
+ */
+export const postProviderCheck = (providers?: string[], signal?: AbortSignal) =>
+  request<ProviderCheckResponse>('POST', '/providers/check', { providers }, signal)

@@ -9,28 +9,37 @@
  * them language: reading a free-text goal (/api/goal/extract, /api/chat),
  * wording an explanation (/api/narrate), and wording an assistant reply
  * (/api/chat). Each degrades to a deterministic answer if the model is
- * unavailable, slow, rate limited, or wrong. Nothing it returns decides
- * what is in the path.
+ * unavailable, slow, rate limited, over budget, refused, or wrong. Nothing
+ * it returns decides what is in the path.
+ *
+ * The model behind those three edges is whichever provider has a key —
+ * see `server/providers.ts`. `/api/providers` lists them, and
+ * `POST /api/providers/check` proves each key works.
  *
  *   npm run server        start it
  *   npm run server:check  typecheck it
  *   npm run smoke         exercise every route against a running instance
  */
 
+import { randomUUID } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
 import cors from 'cors'
 import express from 'express'
+import helmet from 'helmet'
 import {
+  API_KEY,
   CORS_ORIGINS,
   HOST,
-  LLM_ENABLED,
+  INJECTION_POLICY,
   LLM_MODE,
   LLM_RATE_LIMIT,
   LLM_RATE_WINDOW_MS,
-  MODEL,
   PORT,
+  TRUST_PROXY,
 } from './config'
-import { errorHandler, notFound, rateLimit } from './http'
+import { budgetReport } from './budget'
+import { errorHandler, notFound, rateLimit, requireApiKey } from './http'
+import { llmEnabled, modelFor, resolveChain } from './providers'
 import { bankMeta } from './quiz'
 import { catalogRouter } from './routes/catalog'
 import { chatRouter } from './routes/chat'
@@ -38,6 +47,7 @@ import { goalRouter } from './routes/goal'
 import { healthRouter } from './routes/health'
 import { narrateRouter } from './routes/narrate'
 import { pathRouter } from './routes/path'
+import { providersRouter } from './routes/providers'
 import { quizRouter } from './routes/quiz'
 import { rootRouter } from './routes/root'
 
@@ -45,28 +55,72 @@ export function createApp() {
   const app = express()
   app.disable('x-powered-by')
 
+  // Off unless something in front of the server really is setting
+  // X-Forwarded-For. Trusting it blindly turns the per-IP limiter into a
+  // header anyone can rewrite.
+  app.set('trust proxy', TRUST_PROXY ? 1 : false)
+
+  // The index page carries an inline stylesheet, so it gets a per-request
+  // nonce rather than a blanket 'unsafe-inline' for the whole API.
+  app.use((_req, res, next) => {
+    res.locals.cspNonce = randomUUID()
+    next()
+  })
+
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'none'"],
+          styleSrc: ["'self'", (_req, res) => `'nonce-${(res as express.Response).locals.cspNonce}'`],
+          scriptSrc: ["'none'"],
+          imgSrc: ["'self'", 'data:'],
+          connectSrc: ["'self'"],
+          baseUri: ["'none'"],
+          formAction: ["'none'"],
+          frameAncestors: ["'none'"],
+        },
+      },
+      // The API is JSON over a local origin; HSTS on localhost only creates
+      // a browser pin nobody asked for.
+      strictTransportSecurity: false,
+      crossOriginResourcePolicy: { policy: 'same-site' },
+      referrerPolicy: { policy: 'no-referrer' },
+    }),
+  )
+
   app.use(cors({ origin: CORS_ORIGINS }))
   app.use(express.json({ limit: '256kb' }))
 
   const api = express.Router()
 
-  // Deterministic routes. No network, no key, no budget.
+  // Open even when a key is configured: the index page carries no data, and
+  // liveness is how you diagnose a server you cannot authenticate to. The
+  // health route trims itself to `ok` for an unauthenticated caller.
   api.use(rootRouter)
   api.use(healthRouter)
+
+  // Everything past this line needs the key, when one is set.
+  api.use(requireApiKey())
+
+  // Deterministic routes. No network, no key, no budget.
   api.use(catalogRouter)
   api.use(pathRouter)
   api.use(quizRouter)
 
-  // Routes that can spend money get a limiter first. This is not a security
-  // control — it is there so a retry loop in the UI cannot drain the budget.
+  // Routes that can spend money get a limiter first. Per-IP and in-memory,
+  // so it bounds one client; the process-wide cap in `budget.ts` is what
+  // bounds the bill.
   const llmLimiter = rateLimit({ limit: LLM_RATE_LIMIT, windowMs: LLM_RATE_WINDOW_MS })
   api.post('/chat', llmLimiter)
   api.post('/goal/extract', llmLimiter)
   api.post('/narrate', llmLimiter)
+  api.post('/providers/check', llmLimiter)
 
   api.use(chatRouter)
   api.use(goalRouter)
   api.use(narrateRouter)
+  api.use(providersRouter)
 
   app.use('/api', api)
 
@@ -80,19 +134,25 @@ export function createApp() {
 }
 
 function banner(): string {
+  const chain = resolveChain()
+  const budget = budgetReport()
+
   const lines = [
     '',
     `  Pathfinder API   http://${HOST}:${PORT}/api   <- open this, it lists every route`,
     `  Engine           deterministic (src/lib/engine.ts)`,
     `  Item bank        ${bankMeta.items} items across ${bankMeta.skills.length} skills`,
-    LLM_ENABLED
-      ? `  Model            ${MODEL} at two edges (mode: ${LLM_MODE})`
-      : `  Model            OFF (mode: ${LLM_MODE}) — every route answers deterministically`,
-    ...(LLM_ENABLED
-      ? []
-      : ['  To enable it    put ANTHROPIC_API_KEY=sk-ant-... in .env, then restart']),
+    llmEnabled()
+      ? `  Providers        ${chain.map((id) => `${id} (${modelFor(id)})`).join(' -> ')}`
+      : `  Providers        none configured (mode: ${LLM_MODE}) — every route answers deterministically`,
+    `  Guardrails       injection: ${INJECTION_POLICY} - rate limit: ${LLM_RATE_LIMIT}/window - auth: ${API_KEY ? 'on' : 'off'}`,
+    `  Budget           ${budget.limits.calls ?? '∞'} calls, ${budget.limits.tokens ?? '∞'} tokens, $${budget.limits.usd ?? '∞'}`,
     '',
   ]
+
+  if (!llmEnabled()) {
+    lines.splice(-1, 0, '  To enable it     put a key in .env (any provider), then restart')
+  }
   if (bankMeta.unreviewed.length > 0) {
     lines.splice(
       -1,
@@ -100,6 +160,14 @@ function banner(): string {
       `  WARNING          ${bankMeta.unreviewed.length} quiz items are not marked reviewed`,
     )
   }
+  if (!API_KEY && HOST !== '127.0.0.1' && HOST !== 'localhost') {
+    lines.splice(
+      -1,
+      0,
+      `  WARNING          bound to ${HOST} with no PATHFINDER_API_KEY — anyone who can reach it can spend your keys`,
+    )
+  }
+
   return lines.join('\n')
 }
 

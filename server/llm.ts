@@ -1,5 +1,5 @@
 /**
- * The two places a language model is allowed to touch this product.
+ * The three places a language model is allowed to touch this product.
  *
  *   1. `extractGoal` — free text in, one of the catalogue's known goal ids
  *      out. The model chooses from a closed set, so it cannot invent a goal
@@ -7,17 +7,27 @@
  *   2. `narrate` — rewrites an explanation the engine has already computed.
  *      It is handed the finished reasons and asked for prose. It is never
  *      asked what the reasons are.
+ *   3. `converse` — the same principle applied to conversation. The rules
+ *      have already produced a correct answer; the model says it well.
  *
  * Anything the model gets wrong is a wording problem. Selection, ordering
  * and scheduling stay in `src/lib/engine.ts`, deterministic.
  *
- * Both functions always return a usable answer. Missing credentials, a
- * timeout, a rate limit, a malformed response and a refusal all land in the
- * same place: the deterministic result, flagged `degraded`.
+ * Every call is bracketed by guardrails. Inbound, `guard.screenInput` treats
+ * learner text as data and fences it; a message that tries to steer the
+ * model is answered by the rules instead. Outbound, `guard.validateOutput`
+ * checks the prose against the engine's own facts and discards it if the
+ * model reached for a number, a course, a provider or a promise the engine
+ * never produced.
+ *
+ * All three always return a usable answer. No key, no provider, a timeout,
+ * a rate limit, an exhausted budget, a malformed response, a refusal and a
+ * failed guardrail all land in the same place: the deterministic result,
+ * flagged `degraded`.
  */
 
-import Anthropic from '@anthropic-ai/sdk'
-import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod'
+import type { AIMessage } from '@langchain/core/messages'
+import { HumanMessage, SystemMessage } from '@langchain/core/messages'
 import { z } from 'zod'
 import { getResource, skillName } from '../src/lib/catalog'
 import { pathResourceIds, profileSkills, skillGaps } from '../src/lib/engine'
@@ -32,41 +42,65 @@ import {
   type Resource,
   type SkillId,
 } from '../src/lib/types'
+import { assertWithinBudget, BudgetExceededError, recordUsage } from './budget'
 import {
   EXTRACTION_CONFIDENCE_FLOOR,
-  LLM_ENABLED,
   LLM_MAX_RETRIES,
   LLM_TIMEOUT_MS,
-  MODEL,
-  USE_REFUSAL_FALLBACKS,
+  MAX_NARRATION_CHARS,
+  MAX_NARRATION_SENTENCES,
+  MAX_REPLY_CHARS,
+  MAX_REPLY_SENTENCES,
 } from './config'
+import {
+  fenceRule,
+  fenced,
+  makeFence,
+  safeField,
+  screenInput,
+  validateOutput,
+  type InputScreening,
+  type Violation,
+} from './guard'
+import {
+  estimateCost,
+  getModel,
+  llmEnabled,
+  resolveChain,
+  type ProviderId,
+} from './providers'
 
-// ---- client -------------------------------------------------------------
+// ---- status -------------------------------------------------------------
 
-let client: Anthropic | null = null
-
-function getClient(): Anthropic {
-  if (!client) {
-    // No apiKey argument: the SDK resolves ANTHROPIC_API_KEY,
-    // ANTHROPIC_AUTH_TOKEN or an `ant auth login` profile by itself.
-    client = new Anthropic({ timeout: LLM_TIMEOUT_MS, maxRetries: LLM_MAX_RETRIES })
-  }
-  return client
+interface ProviderCounters {
+  calls: number
+  failures: number
+  lastError: string | null
 }
 
 export const llmStatus = {
-  enabled: LLM_ENABLED,
-  model: MODEL,
   calls: 0,
+  /** Times a deterministic answer was served in place of a model answer. */
   fallbacks: 0,
+  /** Model answers thrown away because they failed an output check. */
+  guardrailBlocks: 0,
+  /** Inbound messages routed away from the model by input screening. */
+  screened: 0,
   lastError: null as string | null,
   lastErrorAt: null as number | null,
+  lastViolations: [] as Violation[],
+  byProvider: {} as Record<string, ProviderCounters>,
+}
+
+function counters(id: ProviderId): ProviderCounters {
+  const existing = llmStatus.byProvider[id]
+  if (existing) return existing
+  const fresh: ProviderCounters = { calls: 0, failures: 0, lastError: null }
+  llmStatus.byProvider[id] = fresh
+  return fresh
 }
 
 function describe(error: unknown): string {
-  if (error instanceof Anthropic.APIError) {
-    return `${error.name} (${error.status ?? 'no status'}): ${error.message}`
-  }
   if (error instanceof Error) return `${error.name}: ${error.message}`
   return String(error)
 }
@@ -74,8 +108,8 @@ function describe(error: unknown): string {
 /**
  * Where a model failure becomes a logged, visible degradation instead of a
  * 500. `/api/health` surfaces the last error, because a silent fallback is
- * the worst kind — the demo still "works" and nobody notices the model is
- * out of the loop.
+ * the worst kind — the demo still "works" and nobody notices the model has
+ * been out of the loop since the first request.
  */
 function degrade(where: string, error: unknown): void {
   llmStatus.fallbacks += 1
@@ -84,22 +118,164 @@ function degrade(where: string, error: unknown): void {
   console.warn(`[pathfinder] falling back to deterministic ${where} — ${describe(error)}`)
 }
 
-/**
- * A refusal is handled by falling back deterministically rather than by
- * routing to a second model, which is the stronger option here: the
- * templated path is always available and costs nothing.
- */
 class RefusedError extends Error {
-  constructor(category: string | null) {
-    super(`model declined the request${category ? ` (${category})` : ''}`)
+  constructor(category: string) {
+    super(`model declined the request (${category})`)
     this.name = 'RefusedError'
   }
 }
 
-const REFUSAL_FALLBACK_BETAS = ['server-side-fallback-2026-07-01']
+class NoProviderError extends Error {
+  constructor() {
+    super('no provider is configured with a key')
+    this.name = 'NoProviderError'
+  }
+}
 
-const betas = USE_REFUSAL_FALLBACKS ? REFUSAL_FALLBACK_BETAS : undefined
-const fallbacks = USE_REFUSAL_FALLBACKS ? ('default' as const) : undefined
+class GuardrailError extends Error {
+  readonly violations: Violation[]
+
+  constructor(violations: Violation[]) {
+    super(`output rejected: ${violations.map((v) => `${v.id} (${v.detail})`).join('; ')}`)
+    this.name = 'GuardrailError'
+    this.violations = violations
+  }
+}
+
+// ---- the one call path --------------------------------------------------
+
+interface CallOptions {
+  tag: string
+  system: string
+  human: string
+  maxTokens: number
+  provider?: string | null
+  jsonSchema?: { name: string; schema: Record<string, unknown> }
+}
+
+interface CallResult {
+  text: string
+  parsed: unknown
+  provider: ProviderId
+  model: string
+}
+
+function textOf(message: AIMessage): string {
+  const content = message.content
+  if (typeof content === 'string') return content.trim()
+  if (!Array.isArray(content)) return ''
+  return content
+    .map((block) =>
+      typeof block === 'string' ? block : block.type === 'text' ? (block.text ?? '') : '',
+    )
+    .join('')
+    .trim()
+}
+
+/**
+ * Providers signal a policy stop in their own vocabulary. Normalising it here
+ * keeps the three edges from each growing a vendor switch.
+ */
+function refusalOf(message: AIMessage): string | null {
+  const meta = (message.response_metadata ?? {}) as Record<string, unknown>
+  const kwargs = (message.additional_kwargs ?? {}) as Record<string, unknown>
+
+  if (typeof kwargs.refusal === 'string' && kwargs.refusal.trim()) return 'refusal'
+
+  for (const key of ['stop_reason', 'finish_reason', 'finishReason']) {
+    const value = meta[key]
+    if (typeof value !== 'string') continue
+    const stop = value.toLowerCase()
+    if (['refusal', 'content_filter', 'safety', 'prohibited_content', 'blocklist', 'recitation'].includes(stop)) {
+      return stop
+    }
+  }
+  return null
+}
+
+/**
+ * Try each configured provider in turn. A vendor outage, a bad key or a
+ * refusal moves to the next one; only an exhausted budget stops the walk,
+ * because trying again is exactly what a budget cap exists to prevent.
+ */
+async function callModel(options: CallOptions): Promise<CallResult> {
+  const chain = resolveChain(options.provider)
+  if (chain.length === 0) throw new NoProviderError()
+
+  let lastError: unknown = new NoProviderError()
+
+  for (const id of chain) {
+    assertWithinBudget()
+
+    let handle: Awaited<ReturnType<typeof getModel>>
+    try {
+      handle = await getModel(id, { maxTokens: options.maxTokens, maxRetries: LLM_MAX_RETRIES })
+    } catch (error) {
+      // Never instantiated, so nothing was spent and nothing is recorded.
+      lastError = error
+      counters(id).failures += 1
+      counters(id).lastError = describe(error)
+      continue
+    }
+
+    const messages = [new SystemMessage(options.system), new HumanMessage(options.human)]
+    const config = { signal: AbortSignal.timeout(LLM_TIMEOUT_MS) }
+
+    try {
+      llmStatus.calls += 1
+      counters(id).calls += 1
+
+      let raw: AIMessage
+      let parsed: unknown = null
+
+      if (options.jsonSchema) {
+        // A plain JSON Schema rather than a Zod object: it is what every
+        // provider's tool-calling layer speaks natively, so the same schema
+        // crosses all five without a translation step.
+        const structured = handle.chat.withStructuredOutput(options.jsonSchema.schema, {
+          name: options.jsonSchema.name,
+          includeRaw: true,
+        })
+        const result = (await structured.invoke(messages, config)) as {
+          raw: AIMessage
+          parsed: unknown
+        }
+        raw = result.raw
+        parsed = result.parsed ?? null
+      } else {
+        raw = await handle.chat.invoke(messages, config)
+      }
+
+      const usage = raw.usage_metadata
+      const inputTokens = usage?.input_tokens ?? 0
+      const outputTokens = usage?.output_tokens ?? 0
+      recordUsage({
+        provider: id,
+        model: handle.model,
+        inputTokens,
+        outputTokens,
+        usd: estimateCost(id, inputTokens, outputTokens),
+      })
+
+      const refusal = refusalOf(raw)
+      if (refusal) throw new RefusedError(refusal)
+
+      return { text: textOf(raw), parsed, provider: id, model: handle.model }
+    } catch (error) {
+      if (error instanceof BudgetExceededError) throw error
+
+      // The call left the process, so it counts against the cap even though
+      // we cannot see what it consumed.
+      recordUsage({ provider: id, model: handle.model, inputTokens: 0, outputTokens: 0, usd: 0 })
+      lastError = error
+      counters(id).failures += 1
+      counters(id).lastError = describe(error)
+      console.warn(`[pathfinder] ${options.tag}: ${id} failed — ${describe(error)}`)
+    }
+  }
+
+  throw lastError
+}
 
 // ---- edge 1: goal extraction -------------------------------------------
 
@@ -116,36 +292,75 @@ export interface GoalExtraction {
   weeklyHours: number | null
   source: 'llm' | 'keywords'
   degraded: boolean
+  /** Which vendor answered. Null when the keyword fallback did. */
+  provider: ProviderId | null
+  model: string | null
+  /** What input screening did with the message. */
+  screening: ScreeningReport
 }
 
-const goalIdValues: [string, ...string[]] = ['unknown', ...GOALS.map((goal) => goal.id)]
+export interface ScreeningReport {
+  action: InputScreening['action']
+  flags: string[]
+  redacted: string[]
+}
 
-const GoalExtractionSchema = z.object({
-  goal_id: z
-    .enum(goalIdValues)
-    .describe('The best matching goal id, or "unknown" if none of them fit.'),
-  confidence: z
-    .number()
-    .min(0)
-    .max(1)
-    .describe('How confident you are in that id. Be honest; low is fine.'),
-  restatement: z
-    .string()
-    .describe("One sentence restating the learner's aim in their own words."),
-  signals: z
-    .array(z.string())
-    .max(6)
-    .describe('Short phrases from the message that drove the choice.'),
-  weekly_hours: z
-    .number()
-    .int()
-    .min(0)
-    .max(80)
-    .describe('Hours per week the learner said they can study. 0 if not stated.'),
+function reportOf(screening: InputScreening): ScreeningReport {
+  return { action: screening.action, flags: screening.flags, redacted: screening.redacted }
+}
+
+const goalIdValues = ['unknown', ...GOALS.map((goal) => goal.id)]
+
+/** Portable across providers; validated again on the way back regardless. */
+const GOAL_EXTRACTION_SCHEMA = {
+  type: 'object',
+  properties: {
+    goal_id: {
+      type: 'string',
+      enum: goalIdValues,
+      description: 'The best matching goal id, or "unknown" if none of them fit.',
+    },
+    confidence: {
+      type: 'number',
+      minimum: 0,
+      maximum: 1,
+      description: 'How confident you are in that id. Be honest; low is fine.',
+    },
+    restatement: {
+      type: 'string',
+      description: "One sentence restating the learner's aim in their own words.",
+    },
+    signals: {
+      type: 'array',
+      items: { type: 'string' },
+      maxItems: 6,
+      description: 'Short phrases from the message that drove the choice.',
+    },
+    weekly_hours: {
+      type: 'integer',
+      minimum: 0,
+      maximum: 80,
+      description: 'Hours per week the learner said they can study. 0 if not stated.',
+    },
+  },
+  required: ['goal_id', 'confidence', 'restatement', 'signals', 'weekly_hours'],
+  additionalProperties: false,
+} as const
+
+/**
+ * The parsed object is re-validated here rather than trusted. Structured
+ * output is a strong constraint on a good day and a suggestion on a bad one,
+ * and five providers means five implementations of it.
+ */
+const GoalExtractionResult = z.object({
+  goal_id: z.string(),
+  confidence: z.number().min(0).max(1),
+  restatement: z.string(),
+  signals: z.array(z.string()).max(6),
+  weekly_hours: z.number().int().min(0).max(80),
 })
 
-/** Built once from the goal templates, so the prompt prefix is stable. */
-const EXTRACTION_SYSTEM = [
+const EXTRACTION_RULES = [
   'You classify a free-text career statement into exactly one of the learning tracks below, or "unknown".',
   '',
   'Tracks:',
@@ -158,11 +373,15 @@ const EXTRACTION_SYSTEM = [
   '- Choose only from the ids listed. If the statement fits none of them, answer "unknown" rather than forcing the closest one.',
   '- Judge the destination, not the vocabulary. "I want to put models in production" is ml-engineer even without the words.',
   '- A question about an existing plan, small talk, or a remark about scheduling is "unknown".',
-  '- Confidence is your own estimate. Below 0.55 the system ignores your answer and falls back to keyword matching, so there is nothing to gain by inflating it.',
+  `- Confidence is your own estimate. Below ${EXTRACTION_CONFIDENCE_FLOOR} the system ignores your answer and falls back to keyword matching, so there is nothing to gain by inflating it.`,
   '- The restatement must not promise outcomes, salaries or timelines.',
-].join('\n')
+]
 
-function keywordExtraction(text: string, degraded: boolean): GoalExtraction {
+function keywordExtraction(
+  text: string,
+  degraded: boolean,
+  screening: InputScreening,
+): GoalExtraction {
   const match = matchGoal(text)
   return {
     goalId: match?.goal.id ?? null,
@@ -177,70 +396,99 @@ function keywordExtraction(text: string, degraded: boolean): GoalExtraction {
     weeklyHours: null,
     source: 'keywords',
     degraded,
+    provider: null,
+    model: null,
+    screening: reportOf(screening),
   }
+}
+
+export interface EdgeOptions {
+  /** Name a provider for this call. Ignored unless overrides are allowed. */
+  provider?: string | null
+  /** Reuse a screening the caller already performed on the same text. */
+  screening?: InputScreening
 }
 
 export async function extractGoal(
   text: string,
   profile?: LearnerProfile,
+  options: EdgeOptions = {},
 ): Promise<GoalExtraction> {
-  if (!LLM_ENABLED) return keywordExtraction(text, false)
+  const screening = options.screening ?? screenInput(text)
+
+  // A message trying to steer the model is classified by keywords instead.
+  // The rules cannot be talked out of their answer.
+  if (screening.action !== 'allow') {
+    if (!options.screening) llmStatus.screened += 1
+    return keywordExtraction(screening.text, false, screening)
+  }
+
+  if (!llmEnabled()) return keywordExtraction(screening.text, false, screening)
+
+  const fence = makeFence()
 
   try {
-    llmStatus.calls += 1
-
     const context = profile
-      ? `Context (background, not the thing to classify): experience "${profile.experience}", ${profile.completed.length} completed resources, interests: ${profile.interests.join(', ') || 'none stated'}.`
+      ? `Context (background, not the thing to classify): experience "${profile.experience}", ${profile.completed.length} completed resources, interests: ${profile.interests.map((i) => safeField(i, 60)).join(', ') || 'none stated'}.`
       : ''
 
-    const response = await getClient().beta.messages.parse({
-      model: MODEL,
-      max_tokens: 4000,
-      system: EXTRACTION_SYSTEM,
-      output_config: {
-        effort: 'low',
-        format: betaZodOutputFormat(GoalExtractionSchema),
-      },
-      messages: [
-        {
-          role: 'user',
-          content: [context, `Learner says: "${text}"`].filter(Boolean).join('\n\n'),
-        },
-      ],
-      betas,
-      fallbacks,
+    const result = await callModel({
+      tag: 'goal extraction',
+      provider: options.provider,
+      maxTokens: 1000,
+      system: [...EXTRACTION_RULES, '', fenceRule(fence)].join('\n'),
+      human: [context, 'Learner statement:', fenced(fence, screening.text)]
+        .filter(Boolean)
+        .join('\n\n'),
+      jsonSchema: { name: 'goal_extraction', schema: GOAL_EXTRACTION_SCHEMA },
     })
 
-    if (response.stop_reason === 'refusal') {
-      throw new RefusedError(response.stop_details?.category ?? null)
-    }
-
-    const parsed = response.parsed_output
-    if (!parsed) throw new Error('structured output was empty or failed to parse')
+    const validated = GoalExtractionResult.safeParse(result.parsed)
+    if (!validated.success) throw new Error('structured output was empty or failed to parse')
+    const parsed = validated.data
 
     // The model chose from a closed set, but trust nothing that reaches the
     // engine: re-check the id against the catalogue.
     const goal = GOAL_BY_ID[parsed.goal_id]
-    if (!goal) return keywordExtraction(text, false)
+    if (!goal) return keywordExtraction(screening.text, false, screening)
 
     if (parsed.confidence < EXTRACTION_CONFIDENCE_FLOOR) {
       // Not a failure — the model said it was unsure, so keywords decide.
-      const fallback = keywordExtraction(text, false)
+      const fallback = keywordExtraction(screening.text, false, screening)
       return fallback.goalId ? fallback : { ...fallback, confidence: parsed.confidence }
+    }
+
+    // The restatement is prose shown to the learner, so it faces the same
+    // checks as any other prose. Its facts are the learner's own words.
+    const restatement = parsed.restatement.trim()
+    if (restatement) {
+      const violations = validateOutput(
+        restatement,
+        `${screening.text}\n${goal.title}\n${goal.blurb}`,
+        { maxSentences: 2, maxChars: 300, fence },
+      )
+      if (violations.length > 0) throw new GuardrailError(violations)
     }
 
     return {
       goalId: goal.id,
       confidence: parsed.confidence,
-      restatement: parsed.restatement.trim() || null,
+      restatement: restatement || null,
       signals: parsed.signals,
       weeklyHours: parsed.weekly_hours > 0 ? parsed.weekly_hours : null,
       source: 'llm',
       degraded: false,
+      provider: result.provider,
+      model: result.model,
+      screening: reportOf(screening),
     }
   } catch (error) {
+    if (error instanceof GuardrailError) {
+      llmStatus.guardrailBlocks += 1
+      llmStatus.lastViolations = error.violations
+    }
     degrade('goal extraction', error)
-    return keywordExtraction(text, true)
+    return keywordExtraction(screening.text, true, screening)
   }
 }
 
@@ -254,15 +502,20 @@ export interface NarrationInput {
   closes: Array<{ skillId: SkillId; from: Level; to: Level }>
   position: { index: number; total: number }
   style: 'brief' | 'coaching'
+  provider?: string | null
 }
 
 export interface Narration {
   text: string
   source: 'llm' | 'template'
   degraded: boolean
+  provider: ProviderId | null
+  model: string | null
+  /** Output checks that failed, when the prose was discarded. */
+  violations: Violation[]
 }
 
-const NARRATION_SYSTEM = [
+const NARRATION_RULES = [
   'You rewrite a recommendation that a deterministic engine has already decided.',
   '',
   'You are given the finished reasons. Your only job is to turn them into two or three sentences a learner would actually read.',
@@ -283,7 +536,7 @@ function templateNarration(input: NarrationInput): string {
 function factSheet(input: NarrationInput): string {
   const { resource, goal, profile, reasons, closes, position } = input
   return [
-    `Learner name: ${profile.name}`,
+    `Learner name: ${safeField(profile.name)}`,
     `Goal: ${goal.title} — ${goal.blurb}`,
     `Step ${position.index + 1} of ${position.total} in the path.`,
     `Resource: "${resource.title}" (${resource.kind}, ${resource.provider}, ${resource.hours} hours, difficulty band ${resource.level}).`,
@@ -301,28 +554,70 @@ function factSheet(input: NarrationInput): string {
   ].join('\n')
 }
 
-const digitsIn = (text: string): Set<string> => new Set(text.match(/\d+/g) ?? [])
-
-/**
- * A cheap guard against the one failure that would actually matter: a number
- * the engine never produced. Every integer in the narration has to appear in
- * the facts, or the narration is discarded and the template served instead.
- */
-function inventsNumbers(narration: string, facts: string): boolean {
-  const allowed = digitsIn(facts)
-  for (const found of digitsIn(narration)) {
-    if (!allowed.has(found)) return true
+export async function narrate(input: NarrationInput): Promise<Narration> {
+  const template = templateNarration(input)
+  const offline: Narration = {
+    text: template,
+    source: 'template',
+    degraded: false,
+    provider: null,
+    model: null,
+    violations: [],
   }
-  return false
+
+  if (!llmEnabled()) return offline
+
+  const facts = factSheet(input)
+
+  try {
+    const result = await callModel({
+      tag: 'narration',
+      provider: input.provider,
+      maxTokens: 800,
+      system: NARRATION_RULES,
+      human: [
+        facts,
+        '',
+        input.style === 'coaching'
+          ? 'Write it as a coach speaking directly to the learner ("you"). Two or three sentences.'
+          : 'Write it as a neutral explanation. Two sentences.',
+      ].join('\n'),
+    })
+
+    if (!result.text) throw new Error('model returned no text')
+
+    const violations = validateOutput(result.text, facts, {
+      maxSentences: MAX_NARRATION_SENTENCES,
+      maxChars: MAX_NARRATION_CHARS,
+      prose: true,
+    })
+    if (violations.length > 0) throw new GuardrailError(violations)
+
+    return {
+      text: result.text,
+      source: 'llm',
+      degraded: false,
+      provider: result.provider,
+      model: result.model,
+      violations: [],
+    }
+  } catch (error) {
+    const violations = error instanceof GuardrailError ? error.violations : []
+    if (violations.length > 0) {
+      llmStatus.guardrailBlocks += 1
+      llmStatus.lastViolations = violations
+    }
+    degrade('narration', error)
+    return { ...offline, degraded: true, violations }
+  }
 }
 
 // ---- edge 3: answering in the assistant --------------------------------
 //
-// The same principle as narration, applied to conversation. The engine has
-// already decided the plan and the rule-based assistant has already produced
-// a correct answer; the model turns that, plus the live facts behind it,
-// into something a person would actually want to read. It is given no
-// freedom to decide anything — only to say it well.
+// The engine has already decided the plan and the rule-based assistant has
+// already produced a correct answer; the model turns that, plus the live
+// facts behind it, into something a person would want to read. It is given
+// no freedom to decide anything — only to say it well.
 
 export interface ConversationInput {
   question: string
@@ -332,15 +627,21 @@ export interface ConversationInput {
   /** What the rules answered. The floor, and the fallback. */
   deterministic: string
   intent: string
+  provider?: string | null
+  /** Screening already performed by the route, so it runs once per message. */
+  screening?: InputScreening
 }
 
 export interface Conversation {
   text: string
   source: 'llm' | 'rules'
   degraded: boolean
+  provider: ProviderId | null
+  model: string | null
+  violations: Violation[]
 }
 
-const CONVERSATION_SYSTEM = [
+const CONVERSATION_RULES = [
   "You are Pathfinder's assistant. A learner is asking about their own learning plan.",
   '',
   'The FACTS block is computed by a deterministic engine and is your only source of truth. It already contains the correct answer; your job is to say it well.',
@@ -352,13 +653,13 @@ const CONVERSATION_SYSTEM = [
   '- Never promise a job, a salary, or an outcome.',
   '- No greetings, headings or bullet points. You may use **bold** for a course or goal name, nothing else.',
   '- Address the learner as "you".',
-].join('\n')
+]
 
 /** Everything the engine knows, laid out for the model to draw on. */
 function conversationFacts(input: ConversationInput): string {
   const { profile, goal, path } = input
   const lines: string[] = [
-    `Learner: ${profile.name}, self-declared experience "${profile.experience}".`,
+    `Learner: ${safeField(profile.name)}, self-declared experience "${profile.experience}".`,
     `Pace: ${PACE_HOURS[profile.pace]} hours per week (${profile.pace}).`,
   ]
 
@@ -430,98 +731,60 @@ function conversationFacts(input: ConversationInput): string {
 }
 
 export async function converse(input: ConversationInput): Promise<Conversation> {
-  if (!LLM_ENABLED) return { text: input.deterministic, source: 'rules', degraded: false }
+  const rules: Conversation = {
+    text: input.deterministic,
+    source: 'rules',
+    degraded: false,
+    provider: null,
+    model: null,
+    violations: [],
+  }
+
+  const screening = input.screening ?? screenInput(input.question)
+  if (screening.action !== 'allow') {
+    if (!input.screening) llmStatus.screened += 1
+    return rules
+  }
+
+  if (!llmEnabled()) return rules
 
   const facts = conversationFacts(input)
+  const fence = makeFence()
 
   try {
-    llmStatus.calls += 1
-
-    const response = await getClient().beta.messages.create({
-      model: MODEL,
-      max_tokens: 2000,
-      system: CONVERSATION_SYSTEM,
-      output_config: { effort: 'low' },
-      messages: [
-        {
-          role: 'user',
-          content: `FACTS\n${facts}\n\nThe learner asked: "${input.question}"`,
-        },
-      ],
-      betas,
-      fallbacks,
+    const result = await callModel({
+      tag: 'assistant reply',
+      provider: input.provider,
+      maxTokens: 800,
+      system: [...CONVERSATION_RULES, '', fenceRule(fence)].join('\n'),
+      human: `FACTS\n${facts}\n\nThe learner asked:\n${fenced(fence, screening.text)}`,
     })
 
-    if (response.stop_reason === 'refusal') {
-      throw new RefusedError(response.stop_details?.category ?? null)
+    if (!result.text) throw new Error('model returned no text')
+
+    const violations = validateOutput(result.text, facts, {
+      maxSentences: MAX_REPLY_SENTENCES,
+      maxChars: MAX_REPLY_CHARS,
+      prose: true,
+      fence,
+    })
+    if (violations.length > 0) throw new GuardrailError(violations)
+
+    return {
+      text: result.text,
+      source: 'llm',
+      degraded: false,
+      provider: result.provider,
+      model: result.model,
+      violations: [],
     }
-
-    const text = response.content
-      .filter((block) => block.type === 'text')
-      .map((block) => block.text)
-      .join('')
-      .trim()
-
-    if (!text) throw new Error('model returned no text')
-    if (inventsNumbers(text, facts)) {
-      throw new Error('answer contained a number the engine never produced')
-    }
-
-    return { text, source: 'llm', degraded: false }
   } catch (error) {
+    const violations = error instanceof GuardrailError ? error.violations : []
+    if (violations.length > 0) {
+      llmStatus.guardrailBlocks += 1
+      llmStatus.lastViolations = violations
+    }
     degrade('assistant reply', error)
-    return { text: input.deterministic, source: 'rules', degraded: true }
-  }
-}
-
-export async function narrate(input: NarrationInput): Promise<Narration> {
-  const template = templateNarration(input)
-  if (!LLM_ENABLED) return { text: template, source: 'template', degraded: false }
-
-  const facts = factSheet(input)
-
-  try {
-    llmStatus.calls += 1
-
-    const response = await getClient().beta.messages.create({
-      model: MODEL,
-      max_tokens: 2000,
-      system: NARRATION_SYSTEM,
-      output_config: { effort: 'low' },
-      messages: [
-        {
-          role: 'user',
-          content: [
-            facts,
-            '',
-            input.style === 'coaching'
-              ? 'Write it as a coach speaking directly to the learner ("you"). Two or three sentences.'
-              : 'Write it as a neutral explanation. Two sentences.',
-          ].join('\n'),
-        },
-      ],
-      betas,
-      fallbacks,
-    })
-
-    if (response.stop_reason === 'refusal') {
-      throw new RefusedError(response.stop_details?.category ?? null)
-    }
-
-    const text = response.content
-      .filter((block) => block.type === 'text')
-      .map((block) => block.text)
-      .join('')
-      .trim()
-
-    if (!text) throw new Error('model returned no text')
-    if (inventsNumbers(text, facts)) {
-      throw new Error('narration contained a number the engine never produced')
-    }
-
-    return { text, source: 'llm', degraded: false }
-  } catch (error) {
-    degrade('narration', error)
-    return { text: template, source: 'template', degraded: true }
+    return { ...rules, degraded: true, violations }
   }
 }

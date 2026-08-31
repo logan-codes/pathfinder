@@ -242,6 +242,10 @@ export function ChatRoute() {
               ref={inputRef}
               className="composer__input"
               rows={1}
+              // Matches the server's own cap, so an over-long message is
+              // stopped at the keyboard rather than by a 400 after a round
+              // trip. The server still enforces it; this is only courtesy.
+              maxLength={2000}
               placeholder="Describe your goal, or ask why something is in your path…"
               value={draft}
               onChange={(e) => {

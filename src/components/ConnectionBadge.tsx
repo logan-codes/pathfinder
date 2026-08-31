@@ -38,7 +38,7 @@ export function ConnectionBadge() {
               tone: 'ok',
               label: 'API',
               title:
-                'Connected, with no model configured — the server is answering deterministically. Add ANTHROPIC_API_KEY to .env and restart it to enable goal extraction and written explanations. Click to re-check.',
+                'Connected, with no model configured — the server is answering deterministically. Add any provider key to .env (ANTHROPIC_API_KEY, OPENAI_API_KEY, GOOGLE_API_KEY, GROQ_API_KEY or MISTRAL_API_KEY) and restart it to enable goal extraction and written explanations. Click to re-check.',
             }
 
   return (

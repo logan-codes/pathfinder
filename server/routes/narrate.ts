@@ -20,7 +20,7 @@ export const narrateRouter = Router()
 narrateRouter.post(
   '/narrate',
   asyncHandler(async (req, res) => {
-    const { profile, resourceId, style } = parseBody(NarrateRequest, req.body)
+    const { profile, resourceId, style, provider } = parseBody(NarrateRequest, req.body)
 
     const goal = getGoal(profile.goalId)
     if (!goal) {
@@ -53,6 +53,7 @@ narrateRouter.post(
       closes: item.closes,
       position: { index: order.indexOf(resourceId), total: order.length },
       style,
+      provider,
     })
 
     res.json({
