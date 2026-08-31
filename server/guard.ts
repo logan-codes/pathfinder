@@ -20,9 +20,9 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { RESOURCES, SKILLS } from '../src/lib/catalog'
-import { GOALS } from '../src/lib/goals'
-import { EXTRA_BLOCK_TERMS, INJECTION_POLICY } from './config'
+import { RESOURCES, SKILLS } from '../src/lib/catalog.js'
+import { GOALS } from '../src/lib/goals.js'
+import { EXTRA_BLOCK_TERMS, INJECTION_POLICY } from './config.js'
 
 // ---- normalisation ------------------------------------------------------
 

@@ -13,7 +13,7 @@
  * item. Real IRT calibration would replace `pCorrect` and nothing else.
  */
 
-import type { Level } from '../src/lib/types'
+import type { Level } from '../src/lib/types.js'
 
 export const LEVEL_BUCKETS = [0, 1, 2, 3, 4, 5] as const
 

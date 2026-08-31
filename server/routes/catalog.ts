@@ -6,9 +6,9 @@
  */
 
 import { Router } from 'express'
-import { ALL_TAGS, RESOURCES, SKILLS } from '../../src/lib/catalog'
-import { GOALS } from '../../src/lib/goals'
-import { LEVEL_LABELS, PACE_HOURS, PACE_LABELS } from '../../src/lib/types'
+import { ALL_TAGS, RESOURCES, SKILLS } from '../../src/lib/catalog.js'
+import { GOALS } from '../../src/lib/goals.js'
+import { LEVEL_LABELS, PACE_HOURS, PACE_LABELS } from '../../src/lib/types.js'
 
 export const catalogRouter = Router()
 

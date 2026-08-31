@@ -9,9 +9,9 @@
  */
 
 import { z } from 'zod'
-import type { LearnerProfile, Level } from '../src/lib/types'
-import { MIN_PASSWORD_LENGTH } from './config'
-import { safeField } from './guard'
+import type { LearnerProfile, Level } from '../src/lib/types.js'
+import { MIN_PASSWORD_LENGTH } from './config.js'
+import { safeField } from './guard.js'
 
 /** Fails compilation when the condition is false. */
 type Assert<T extends true> = T

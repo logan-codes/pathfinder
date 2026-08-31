@@ -17,9 +17,9 @@
 
 import { Router } from 'express'
 import { z } from 'zod'
-import { assertWithinBudget, budgetReport, BudgetExceededError, recordUsage } from '../budget'
-import { ALLOW_PROVIDER_OVERRIDE, LLM_MODE, PROVIDER_FALLBACK } from '../config'
-import { asyncHandler, HttpError, parseBody } from '../http'
+import { assertWithinBudget, budgetReport, BudgetExceededError, recordUsage } from '../budget.js'
+import { ALLOW_PROVIDER_OVERRIDE, LLM_MODE, PROVIDER_FALLBACK } from '../config.js'
+import { asyncHandler, HttpError, parseBody } from '../http.js'
 import {
   checkProvider,
   configuredProviders,
@@ -28,7 +28,7 @@ import {
   providerStatuses,
   resolveChain,
   type ProviderId,
-} from '../providers'
+} from '../providers.js'
 
 export const providersRouter = Router()
 

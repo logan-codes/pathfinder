@@ -303,10 +303,7 @@ function WhyRail() {
           {written && (
             <div className="why__prose">
               <p>{written}</p>
-              <p className="why__prose-by">
-                Written by {connection.model} from the reasons below. The reasons are the
-                decision; this is only the wording.
-              </p>
+              
             </div>
           )}
 

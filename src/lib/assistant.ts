@@ -12,10 +12,10 @@
  * handed to a model, which may recognise a goal the keywords did not.
  */
 
-import { SKILLS, getResource, skillName } from './catalog'
-import { findPathItem, pathResourceIds, profileSkills, skillGaps } from './engine'
-import { GOALS, getGoal, matchGoal } from './goals'
-import { hours as fmtHours, weeks as fmtWeeks } from './format'
+import { SKILLS, getResource, skillName } from './catalog.js'
+import { findPathItem, pathResourceIds, profileSkills, skillGaps } from './engine.js'
+import { GOALS, getGoal, matchGoal } from './goals.js'
+import { hours as fmtHours, weeks as fmtWeeks } from './format.js'
 import {
   LEVEL_LABELS,
   PACE_HOURS,
@@ -25,7 +25,7 @@ import {
   type Pace,
   type Resource,
   type Skill,
-} from './types'
+} from './types.js'
 
 /** Which branch produced the reply. Lets a caller act on `unmatched`. */
 export type AssistantIntent =

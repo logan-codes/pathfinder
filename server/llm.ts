@@ -46,8 +46,8 @@ import {
   type Reason,
   type Resource,
   type SkillId,
-} from '../src/lib/types'
-import { assertWithinBudget, BudgetExceededError, recordUsage } from './budget'
+} from '../src/lib/types.js'
+import { assertWithinBudget, BudgetExceededError, recordUsage } from './budget.js'
 import {
   EXTRACTION_CONFIDENCE_FLOOR,
   LLM_MAX_RETRIES,
@@ -56,7 +56,7 @@ import {
   MAX_NARRATION_SENTENCES,
   MAX_REPLY_CHARS,
   MAX_REPLY_SENTENCES,
-} from './config'
+} from './config.js'
 import {
   fenceRule,
   fenced,
@@ -66,14 +66,14 @@ import {
   validateOutput,
   type InputScreening,
   type Violation,
-} from './guard'
+} from './guard.js'
 import {
   estimateCost,
   getModel,
   llmEnabled,
   resolveChain,
   type ProviderId,
-} from './providers'
+} from './providers.js'
 
 // ---- status -------------------------------------------------------------
 
