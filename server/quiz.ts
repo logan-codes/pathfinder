@@ -11,14 +11,31 @@
  * graded here.
  */
 
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { z } from 'zod'
 import type { GradedItem } from './mastery'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
-const BANK_PATH = path.join(here, '..', 'data', 'quiz-bank.json')
+
+/**
+ * Where the bank might be, in order of preference.
+ *
+ * Locally there is only one answer: one directory up from `server/`. The
+ * second exists because a serverless bundler rewrites the module layout, so
+ * `import.meta.url` no longer sits a fixed distance from the repository root
+ * and the deployment's working directory becomes the only reliable anchor.
+ * Checking both costs one `existsSync` at startup and removes an entire
+ * class of "passes locally, 500s in production".
+ */
+const BANK_CANDIDATES = [
+  path.join(here, '..', 'data', 'quiz-bank.json'),
+  path.join(process.cwd(), 'data', 'quiz-bank.json'),
+]
+
+const BANK_PATH =
+  BANK_CANDIDATES.find((candidate) => existsSync(candidate)) ?? BANK_CANDIDATES[0]
 
 const QuizOptionSchema = z.object({
   id: z.string().min(1).max(8),
